@@ -1,62 +1,41 @@
 pub mod syntax;
 pub mod unify;
+
 pub mod solve;
 
+pub mod parser; // lalrpop generated parser
 use solve::{solve_toplevel};
 
+extern crate lalrpop_util;
+extern crate readline;
+use readline::readline;
+use std::ffi::CString;
+
 fn main() {
-    use syntax::Term;
-    use syntax::Term::{Var, Const};
-    use syntax::Clause;
-    println!("Hello, world!");
-    fn mk_const(s: &str) -> Term {
-      Const(s.to_string())
+    use syntax::Database;
+    use syntax::ToplevelCmd::*;
+    use parser::parse_Toplevel;
+    use std::str;
+    use lalrpop_util::ParseError;
+
+    let mut db: Database = vec![];
+
+    println!("Welcome to miniprolog!");
+
+    let prompt = CString::new("miniprolog> ").unwrap();
+
+    while let Ok(s) = readline(&prompt) {
+      match parse_Toplevel(str::from_utf8(s.to_bytes()).unwrap()) {
+        Ok(commands)  =>
+          for &ref command in commands.iter() {
+            match command {
+              &Assert(ref a) => db.push(a.clone()),
+              &Goal(ref g)   => solve_toplevel(&db, &g),
+              &Quit          => return,
+              &Use(_)        => return
+            }
+          },
+        Err(_) => println!("Parse error")
     }
-    let db = vec![
-      /* likes(mary, food). */
-      (("likes".to_string(),
-        vec![mk_const("mary"), mk_const("food")]), vec![]),
-      /* likes(mary, wine). */
-      (("likes".to_string(),
-        vec![mk_const("mary"), mk_const("wine")]), vec![]),
-      /* likes(john, wine). */
-      (("likes".to_string(),
-        vec![mk_const("john"), mk_const("wine")]), vec![]),
-      /* likes(john, mary). */
-      (("likes".to_string(),
-        vec![mk_const("john"), mk_const("mary")]), vec![]),
-    ];
-    let clause : Clause = vec![
-      /* ?- likes(mary, food). */
-      ("likes".to_string(),
-        vec![mk_const("mary"), mk_const("food")])
-    ];
-    /* yes */
-    solve_toplevel(&db, &clause);
-
-    let clause : Clause = vec![
-      /* ?- likes(john, wine). */
-      ("likes".to_string(),
-        vec![mk_const("john"), mk_const("wine")])
-    ];
-    /* yes */
-    solve_toplevel(&db, &clause);
-
-    let clause : Clause = vec![
-      /* ?- likes(john, food). */
-      ("likes".to_string(),
-        vec![mk_const("john"), mk_const("food")])
-    ];
-    /* no */
-    solve_toplevel(&db, &clause);
-
-    /* More interesting example */
-    /* ?- likes(X,food). */
-    let clause : Clause = vec![
-      /* ?- likes(X, wine). */
-      ("likes".to_string(),
-        vec![Var(("X".to_string(), 0)), mk_const("wine")])
-    ];
-    solve_toplevel(&db, &clause);
-
+  }
 }

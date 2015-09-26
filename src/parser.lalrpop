@@ -1,0 +1,194 @@
+use syntax::*;
+use syntax::Term::*;
+use syntax::ToplevelCmd::*;
+
+grammar;
+
+// Lexemes
+
+// rule token = parse
+//     '#' [^'\n']* '\n' { incr_linenum lexbuf; token lexbuf }
+//   | '\n'            { incr_linenum lexbuf; token lexbuf }
+//   | [' ' '\t']      { token lexbuf }
+
+COMMENT:() = {
+  r"#[^\n]*\n" => ()
+};
+
+NEWLINE:() = {
+  "\n" => ()
+};
+
+WS:() = {
+  r"[ 	]" => ()
+};
+
+IGNORED: () = {
+  COMMENT* NEWLINE* WS* => ()
+};
+
+// let const = ['a'-'z'] ['_' 'a'-'z' 'A'-'Z' '1'-'9']*
+CONST = {
+  r"[a-z][_a-zA-Z0-9]*"
+};
+// let var = ['A'-'Z'] ['_' 'a'-'z' 'A'-'Z' '0'-'9']*
+VAR = {
+  r"[A-Z][_a-zA-Z0-9]*"
+};
+
+//   | "$use"          { USE }
+USE:() = {
+  "$use" => ()
+};
+
+//   | "$quit"         { QUIT }
+QUIT:() = {
+  "$quit" => ()
+};
+
+//   | "?-"            { GOAL }
+GOAL:() = {
+  "?-" => ()
+};
+
+//   | ":-"            { FROM }
+FROM:() = {
+  ":-" => ()
+};
+//   | "true"          { TRUE }
+TRUE:() = {
+  "true" => ()
+};
+
+//   | '\"' [^'\"']* '\"' { let str = lexeme lexbuf in
+//                         STRING (String.sub str 1 (String.length str - 2)) }
+STRING: &'input str = {
+  <s:r#""[^"]*""#> => &s[1..s.len()-1]
+};
+
+//   | '('             { LPAREN }
+LPAREN:() = {
+  "(" => ()
+};
+
+//   | ')'             { RPAREN }
+RPAREN:() = {
+  ")" => ()
+};
+
+//   | ','             { COMMA }
+COMMA:() = {
+  "," => ()
+};
+
+//   | '.'             { PERIOD }
+PERIOD:() = {
+  "." => ()
+};
+
+//   | const           { CONST (lexeme lexbuf) }
+//   | var             { VAR (lexeme lexbuf) }
+//   | eof             { EOF }
+// 
+// {
+// }
+
+// Productions
+
+// toplevel:
+//   | EOF                      { [] }
+//   | exprtop                  { $1 }
+//   | cmdtop                   { $1 }
+pub Toplevel: Vec<ToplevelCmd> = {
+  Exprtop,
+  Cmdtop
+};
+
+// exprtop:
+//   | expr EOF                 { [$1] }
+//   | expr toplevel            { $1 :: $2 }
+Exprtop: Vec<ToplevelCmd> = {
+  <Expr>                => vec![<>],
+  <e:Expr> <t:Toplevel> => { let mut new_t = t.clone(); new_t.push(e); new_t }
+};
+
+// cmdtop:
+//   | cmd EOF                  { [$1] }
+//   | cmd toplevel             { $1 :: $2 }
+Cmdtop: Vec<ToplevelCmd> = {
+  <Cmd>                => vec![<>],
+  <c:Cmd> <t:Toplevel> => { let mut new_t = t.clone(); new_t.push(c); new_t }
+};
+
+// cmd:
+//   | USE STRING { Use $2 }
+//   | QUIT       { Quit }
+Cmd: ToplevelCmd = {
+  USE <STRING> => Use(<>.to_string()),
+  QUIT         => Quit
+};
+
+// expr:
+//   | goal      { $1 }
+//   | assertion { $1 }
+Expr = {
+  Goal,
+  Assertion
+};
+
+
+// goal:
+//   | GOAL clause PERIOD        { Goal $2 }
+Goal: ToplevelCmd = {
+  GOAL <Clause> PERIOD => Goal(<>)
+};
+
+
+// assertion:
+//   | atom PERIOD               { Assert ($1, []) }
+//   | atom FROM clause PERIOD   { Assert ($1, $3) }
+Assertion: ToplevelCmd = {
+  <Atom> PERIOD                   => Assert((<>, vec![])),
+  <a:Atom> FROM <c:Clause> PERIOD => Assert((a,c))
+};
+
+// atom:
+//   | CONST                     { ($1, []) }
+//   | CONST LPAREN args RPAREN  { ($1, $3) }
+Atom: (Constant, Vec<Term>) = {
+  <CONST>                          => (<>.to_string(), vec![]),
+  <c:CONST> LPAREN <a:Args> RPAREN => (c.to_string(), a)
+};
+
+
+// clause:
+//   | TRUE                      { [] }
+//   | atom                      { [$1] }
+//   | atom COMMA clause         { $1 :: $3 }
+Clause: Vec<Atom> = {
+  TRUE                  => vec![],
+  <Atom>                => vec![<>],
+  <a:Atom> COMMA <c:Clause> => { let mut new_c = c.clone(); new_c.push(a); new_c }
+};
+
+
+// args:
+//   | literal            { [$1] }
+//   | literal COMMA args { $1 :: $3 }
+Args: Vec<Term> = {
+  <Literal>                  => vec![<>],
+  <l:Literal> COMMA <a:Args> => { let mut new_a = a.clone(); new_a.push(l); new_a }
+};
+
+
+// literal:
+//   | CONST                    { Const $1 }
+//   | VAR                      { Var ($1, 0) }
+//   | CONST LPAREN args RPAREN { App ($1, $3) }  
+Literal: Term = {
+  <CONST>                          => Const(<>.to_string()),
+  <VAR>                            => Var((<>.to_string(), 0)),
+  <c:CONST> LPAREN <a:Args> RPAREN => App(c.to_string(), a)
+};
+
+

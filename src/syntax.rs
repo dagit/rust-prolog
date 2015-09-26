@@ -44,6 +44,7 @@ pub type Environment = HashMap<Variable, Term>;
 pub type Database = Vec<Assertion>;
 
 /* Toplevel commands */
+#[derive(PartialEq, Clone)]
 pub enum ToplevelCmd {
   Assert(Assertion), /* Assertion [a :- b_1, ..., b_n.] or [a.] */
   Goal(Clause),      /* Query [?- a] */
