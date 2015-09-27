@@ -5,10 +5,12 @@ authors = ["dagit <dagitj@gmail.com>"]
 build = "build.rs" # LALRPOP preprocessing
 
 [dependencies]
-readline = "*"
+rl-sys = "*"
 
 [dependencies.lalrpop-util]
-version = "*"
+git = "https://github.com/nikomatsakis/lalrpop.git"
+#version = "*"
 
 [build-dependencies.lalrpop]
-version = "*"
+git = "https://github.com/nikomatsakis/lalrpop.git"
+#version = "*"
