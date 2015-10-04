@@ -6,6 +6,7 @@ build = "build.rs" # LALRPOP preprocessing
 
 [dependencies]
 rl-sys = "*"
+ctrlc  = "*"
 
 [dependencies.lalrpop-util]
 git = "https://github.com/nikomatsakis/lalrpop.git"
