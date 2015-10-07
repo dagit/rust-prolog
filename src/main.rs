@@ -5,6 +5,7 @@ extern crate ctrlc;         // Wrapper for handling Ctrl-C
 pub mod syntax;
 pub mod unify;
 pub mod solve;
+pub mod token;
 pub mod parser; // lalrpop generated parser
 
 use std::fs::File;
