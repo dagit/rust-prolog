@@ -1,0 +1,7 @@
+src/parser.rs
+*.swo
+*.swp
+target/
+
+# Maybe someday we'll freeze our deps, but not yet
+Cargo.lock
