@@ -1,10 +1,13 @@
 extern crate lalrpop_util;  // parser generator
 extern crate rl_sys;        // provides readline
 extern crate ctrlc;         // Wrapper for handling Ctrl-C
+extern crate regex;
 
 pub mod syntax;
 pub mod unify;
 pub mod solve;
+pub mod token;
+pub mod lexer;
 pub mod parser; // lalrpop generated parser
 
 use std::fs::File;
@@ -88,6 +91,7 @@ fn exec_cmds(db: &mut Database, cmds: &Vec<ToplevelCmd>, interrupted: &Arc<Atomi
 fn main() {
     use rl_sys::{readline, add_history};
     use ctrlc::CtrlC;
+    use lexer::Lexer;
     // This is for handling Ctrl-C. We note the interruption
     // so that we can check for it inside the computations, and
     // abort as requested.
@@ -111,6 +115,15 @@ fn main() {
     println!(r#"    $quit                Exit interpreter."#);
     println!(r#"    $use "filename"      Execute commands from a file."#);
 
+    // Just a quick 'n dirty test for the lexer
+    let test_input = r"  bottom
+    # some stuff
+    (X)  :-  bottom(X)  .  ";
+    let mut lex = Lexer::new(test_input);
+    println!("Lexing: {}", test_input);
+    while let Some(t) = lex.next() {
+      println!("Found: {:?}", t);
+    }
     let prompt = "Prolog> ".to_string();
 
     while let Some(s) = readline(prompt.clone()) {
