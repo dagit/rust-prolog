@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate lazy_static;   // lazy static initializers
 extern crate lalrpop_util;  // parser generator
 extern crate rl_sys;        // provides readline
 extern crate ctrlc;         // Wrapper for handling Ctrl-C
