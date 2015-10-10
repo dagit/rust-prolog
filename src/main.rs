@@ -115,15 +115,6 @@ fn main() {
     println!(r#"    $quit                Exit interpreter."#);
     println!(r#"    $use "filename"      Execute commands from a file."#);
 
-    // Just a quick 'n dirty test for the lexer
-    let test_input = r"  bottom
-    # some stuff
-    (X)  :-  bottom(X)  .  ";
-    let mut lex = Lexer::new(test_input);
-    println!("Lexing: {}", test_input);
-    while let Some(t) = lex.next() {
-      println!("Found: {:?}", t);
-    }
     let prompt = "Prolog> ".to_string();
 
     while let Some(s) = readline(prompt.clone()) {
