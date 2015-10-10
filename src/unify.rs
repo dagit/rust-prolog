@@ -15,13 +15,7 @@ fn unify_terms(env:&Environment, t1: &Term, t2: &Term)
     Ok(env.clone())
   } else {
     match (new_t1, new_t2) {
-      (Term::Var(y), t) => if occurs(&y,&t) {
-                             Err(NoUnify)
-                           } else {
-                             let mut new_env = env.clone();
-                             new_env.insert(y,t);
-                             Ok(new_env)
-                           },
+      (Term::Var(y), t) |
       (t, Term::Var(y)) => if occurs(&y,&t) {
                              Err(NoUnify)
                            } else {
