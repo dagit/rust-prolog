@@ -23,7 +23,6 @@ pub enum Token<'input> {
   RPAREN,
   GOAL,
   QUIT,
-  SEMICOLON2,
   USE,
   STRING(&'input str),
   EOF,

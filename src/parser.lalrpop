@@ -22,7 +22,6 @@ extern {
     "RPAREN"     => Token::RPAREN(..),
     "GOAL"       => Token::GOAL(..),
     "QUIT"       => Token::QUIT(..),
-    "SEMICOLON2" => Token::SEMICOLON2(..),
     "USE"        => Token::USE(..),
     "STRING"     => Token::STRING(<&'input str>),
   }
