@@ -100,6 +100,8 @@ impl<'input> Lexer<'input> {
       };
     }
 
+    /* Lexers should match the longest string they can, so we list the
+       variable length regular expressions first to achieve maximal munch */
     actions![ self.const_ => |s:&'input str| Token::CONST(s),
               self.var    => |s:&'input str| Token::VAR(s),
               self.use_   => |_| Token::USE,
