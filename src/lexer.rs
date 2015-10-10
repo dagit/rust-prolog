@@ -109,7 +109,7 @@ impl<'input> Lexer<'input> {
               self.goal   => |_| Token::GOAL,
               self.from   => |_| Token::FROM,
               self.true_  => |_| Token::TRUE,
-              self.string => |s:&'input str| Token::STRING(s),
+              self.string => |s:&'input str| Token::STRING(&s[1..s.len()-1]),
               self.lparen => |_| Token::LPAREN,
               self.rparen => |_| Token::RPAREN,
               self.comma  => |_| Token::COMMA,
