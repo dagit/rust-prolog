@@ -70,7 +70,8 @@ impl<'input> Lexer<'input> {
     */
     loop {
       if let Some((_,end)) = self.comment.find(self.text) {
-        self.pos += end;
+        self.line += 1;
+        self.pos  += end;
         self.text = &self.text[end..];
         continue
       } else if let Some((_,end)) = self.newline.find(self.text) {
@@ -114,24 +115,3 @@ impl<'input> Lexer<'input> {
             ]
   }
 }
-
-/*
-rule token = parse
-    '#' [^'\n']* '\n' { incr_linenum lexbuf; token lexbuf }
-  | '\n'            { incr_linenum lexbuf; token lexbuf }
-  | [' ' '\t']      { token lexbuf }
-  | "$use"          { USE }
-  | "$quit"         { QUIT }
-  | "?-"            { GOAL }
-  | ":-"            { FROM }
-  | "true"          { TRUE }
-  | '\"' [^'\"']* '\"' { let str = lexeme lexbuf in
-                        STRING (String.sub str 1 (String.length str - 2)) }
-  | '('             { LPAREN }
-  | ')'             { RPAREN }
-  | ','             { COMMA }
-  | '.'             { PERIOD }
-  | const           { CONST (lexeme lexbuf) }
-  | var             { VAR (lexeme lexbuf) }
-  | eof             { EOF }
-*/
