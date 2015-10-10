@@ -50,6 +50,20 @@ impl<'input> Lexer<'input> {
     }
   }
 
+  fn match_and_consume<F>(text: &mut &'input str, pos: &mut usize, re: &Regex, action: F)
+  -> Option<Token<'input>>
+  where F: Fn(&'input str) -> Token
+  {
+    if let Some((start,end)) = re.find(text) {
+      *pos += end;
+      let ret = Some(action(&text[start..end]));
+      *text = &text[end..];
+      ret
+    } else {
+      None
+    }
+  }
+
   pub fn next(&mut self) -> Option<Token> {
     /* Ignore comments and whitespace. We separate newline from the other
        whitespace so that we can count line numbers
@@ -72,71 +86,82 @@ impl<'input> Lexer<'input> {
       break;
     }
 
-    if let Some((start,end)) = self.const_.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::CONST(&self.text[start..end]));
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((start,end)) = self.var.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::VAR(&self.text[start..end]));
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((_,end)) = self.use_.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::USE);
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((_,end)) = self.quit.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::QUIT);
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((_,end)) = self.goal.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::GOAL);
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((_,end)) = self.from.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::FROM);
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((_,end)) = self.true_.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::TRUE);
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((start,end)) = self.string.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::STRING(&self.text[start..end]));
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((_,end)) = self.lparen.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::LPAREN);
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((_,end)) = self.rparen.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::RPAREN);
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((_,end)) = self.comma.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::COMMA);
-      self.text = &self.text[end..];
-      ret
-    } else if let Some((_,end)) = self.period.find(self.text) {
-      self.pos += end;
-      let ret = Some(Token::PERIOD);
-      self.text = &self.text[end..];
-      ret
+    if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                &mut self.pos,
+                                                &self.const_,
+                                                |s:&'input str| Token::CONST(s))
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.var,
+                                                       |s: &'input str| Token::VAR(s))
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.use_,
+                                                       |_| Token::USE)
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.quit,
+                                                       |_| Token::QUIT)
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.goal,
+                                                       |_| Token::GOAL)
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.from,
+                                                       |_| Token::FROM)
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.true_,
+                                                       |_| Token::TRUE)
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.string,
+                                                       |s:&'input str| Token::STRING(s))
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.lparen,
+                                                       |_| Token::LPAREN)
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.rparen,
+                                                       |_| Token::RPAREN)
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.comma,
+                                                       |_| Token::COMMA)
+    {
+      t
+    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                       &mut self.pos,
+                                                       &self.period,
+                                                       |_| Token::PERIOD)
+    {
+      t
     } else {
       None
     }
   }
-
 }
 
 /*
