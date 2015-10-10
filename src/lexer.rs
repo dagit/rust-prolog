@@ -1,7 +1,9 @@
 use regex::Regex;
 
 use token::Token;
+use token::Error;
 
+pub type Spanned<T> = (usize, T, usize);
 
 pub struct Lexer<'input> {
   text    : &'input str,
@@ -64,7 +66,7 @@ impl<'input> Lexer<'input> {
     }
   }
 
-  pub fn next(&mut self) -> Option<Token> {
+  pub fn next(&mut self) -> Option<Token<'input>> {
     /* Ignore comments and whitespace. We separate newline from the other
        whitespace so that we can count line numbers
     */
@@ -115,5 +117,17 @@ impl<'input> Lexer<'input> {
               self.comma  => |_| Token::COMMA,
               self.period => |_| Token::PERIOD
             ]
+  }
+}
+
+impl<'input> Iterator for Lexer<'input> {
+  type Item = Result<Spanned<Token<'input>>, Error>;
+
+  fn next(&mut self) -> Option<Result<Spanned<Token<'input>>, Error>> {
+    match self.next() {
+     /* TODO: fix this span */
+     Some(t) => Some(Ok((0,t,0))),
+     None    => None,
+    }
   }
 }

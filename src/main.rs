@@ -23,6 +23,7 @@ use solve::{solve_toplevel, assert};
 use syntax::Database;
 use syntax::ToplevelCmd;
 use syntax::ToplevelCmd::*;
+use lexer::Lexer;
 
 enum Status<E> {
   Ok,
@@ -63,7 +64,7 @@ fn exec_file(db: &mut Database, filename: &String, interrupted: &Arc<AtomicBool>
       match f.read_to_string(&mut s) {
         Err(e) => return Status::Err(e),
         Ok(_)  => {
-          match parse_Toplevel(&s) {
+          match parse_Toplevel(&s, Lexer::new(&s)) {
             Ok(cmds) => exec_cmds(db, &cmds, interrupted),
             Err(_)   => { println!("Parse error"); Status::Ok }
           }
@@ -91,7 +92,6 @@ fn exec_cmds(db: &mut Database, cmds: &Vec<ToplevelCmd>, interrupted: &Arc<Atomi
 fn main() {
     use rl_sys::{readline, add_history};
     use ctrlc::CtrlC;
-    use lexer::Lexer;
     // This is for handling Ctrl-C. We note the interruption
     // so that we can check for it inside the computations, and
     // abort as requested.
@@ -132,7 +132,7 @@ fn main() {
       add_history(s.clone());
       /* Always reset the state of interrupted before we start processing */
       interrupted.store(false, Ordering::SeqCst);
-      match parse_Toplevel(&s) {
+      match parse_Toplevel(&s, Lexer::new(&s)) {
         Ok(commands)  => match exec_cmds(&mut db, &commands, &interrupted) {
           Status::Quit   => return,
           Status::Err(e) => {
