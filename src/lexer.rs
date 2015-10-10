@@ -86,81 +86,32 @@ impl<'input> Lexer<'input> {
       break;
     }
 
-    if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                &mut self.pos,
-                                                &self.const_,
-                                                |s:&'input str| Token::CONST(s))
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.var,
-                                                       |s: &'input str| Token::VAR(s))
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.use_,
-                                                       |_| Token::USE)
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.quit,
-                                                       |_| Token::QUIT)
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.goal,
-                                                       |_| Token::GOAL)
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.from,
-                                                       |_| Token::FROM)
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.true_,
-                                                       |_| Token::TRUE)
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.string,
-                                                       |s:&'input str| Token::STRING(s))
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.lparen,
-                                                       |_| Token::LPAREN)
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.rparen,
-                                                       |_| Token::RPAREN)
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.comma,
-                                                       |_| Token::COMMA)
-    {
-      t
-    } else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
-                                                       &mut self.pos,
-                                                       &self.period,
-                                                       |_| Token::PERIOD)
-    {
-      t
-    } else {
-      None
+    macro_rules! actions {
+      ( $( $x:expr => $y:expr ),* ) => {
+        if false { None } /* 'if false' just to make the rust syntax below more uniform */
+        $(
+          else if let t@Some(_) = Lexer::match_and_consume(&mut self.text,
+                                                           &mut self.pos,
+                                                           &$x,
+                                                           $y) { t }
+        )*
+        else { None }
+      };
     }
+
+    actions![ self.const_ => |s:&'input str| Token::CONST(s),
+              self.var    => |s:&'input str| Token::VAR(s),
+              self.use_   => |_| Token::USE,
+              self.quit   => |_| Token::QUIT,
+              self.goal   => |_| Token::GOAL,
+              self.from   => |_| Token::FROM,
+              self.true_  => |_| Token::TRUE,
+              self.string => |s:&'input str| Token::STRING(s),
+              self.lparen => |_| Token::LPAREN,
+              self.rparen => |_| Token::RPAREN,
+              self.comma  => |_| Token::COMMA,
+              self.period => |_| Token::PERIOD
+            ]
   }
 }
 
