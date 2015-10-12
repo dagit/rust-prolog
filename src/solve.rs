@@ -85,9 +85,9 @@ fn continue_search(ch: &Vec<Choice>, interrupted: &Arc<AtomicBool>) -> Result<()
   if ch.is_empty() {
     Err(NoSolution)
   } else {
-    let mut new_ch = ch.clone();
-    let (asrl, env, gs, n) = new_ch.remove(0);
-    solve(&new_ch, &asrl, &env, &gs, n, interrupted)
+    let mut ch = ch.clone();
+    let (asrl, env, gs, n) = ch.pop().expect(concat!(file!(), ":", line!()));
+    solve(&ch, &asrl, &env, &gs, n, interrupted)
   }
 }
 
@@ -121,7 +121,7 @@ fn solve(ch:          &Vec<Choice>,
   } else {
     /* Reduce the first atom in the clause */
     let mut new_c = c.clone();
-    let a = new_c.remove(0);
+    let a = new_c.pop().expect(concat!(file!(), ":", line!()));
     match reduce_atom(env, n, &a, asrl) {
       None =>
         /* This clause cannot be solved, look for other solutions */
@@ -129,13 +129,12 @@ fn solve(ch:          &Vec<Choice>,
       Some((new_asrl, new_env, d)) => {
         /* The atom was reduced to subgoals [d]. Continue
            search with the subgoals added to the list of goals. */
-        let mut new_ch = Vec::<Choice>::new();
         /* Add a new choice */
-        new_ch.push((new_asrl, env.clone(), c.clone(), n));
-        new_ch.extend(ch.iter().cloned());
-        let mut new_d = d.clone();
-        new_d.extend(new_c.iter().cloned());
-        solve(&new_ch, asrl, &new_env, &new_d, n+1, interrupted)
+        let mut ch = ch.clone();
+        ch.push((new_asrl,env.clone(),c.clone(),n));
+        let d  = d.into_iter().chain(new_c.into_iter())
+                  .collect::<Clause>();
+        solve(&ch, asrl, &new_env, &d, n+1, interrupted)
       }
     }
   }
@@ -151,7 +150,7 @@ fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &Database)
     None
   } else {
     let mut asrl2 = local_asrl.clone();
-    let (b, lst)  = asrl2.remove(0);
+    let (b, lst)  = asrl2.pop().expect(concat!(file!(), ":", line!()));
     let try_env = unify_atoms(env, a, &renumber_atom(n, &b));
     match try_env {
       Err(_)       => reduce_atom(env, n, a, &asrl2),

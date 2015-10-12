@@ -17,7 +17,7 @@ the same variable name in two different applications of the same assertion. */
 pub type Variable = (String, i32);
 
 /* The datatype of terms */
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Term {
   Var(Variable),            /* Variable [X1], [Y0], [Z2], ... */
   Const(Constant),          /* Constant [a], [b], [c], ...    */
