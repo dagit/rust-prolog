@@ -51,7 +51,7 @@ Input syntax:
     A :- B1, ..., Bn.    Assert an inference rule.
     $quit                Exit interpreter.
     $use "filename"      Execute commands from a file.
-Prolog> $use "likes.pl"
+Prolog> $use "src/likes.pl"
 Prolog> ?- likes(X,Y).
 Y = mary
 X = john 
