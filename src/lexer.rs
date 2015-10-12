@@ -111,7 +111,7 @@ impl<'input> Lexer<'input> {
 impl<'input> Iterator for Lexer<'input> {
   type Item = Result<Spanned<Token<'input>>, Error>;
 
-  fn next(&mut self) -> Option<Result<Spanned<Token<'input>>, Error>> {
+  fn next(&mut self) -> Option<Self::Item> {
     match self.next() {
      /* TODO: fix this span */
      Some(t) => Some(Ok((0,t,0))),
