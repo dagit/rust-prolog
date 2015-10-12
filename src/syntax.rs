@@ -20,8 +20,8 @@ pub type Variable = (String, i32);
 #[derive(PartialEq, Clone)]
 pub enum Term {
   Var(Variable),            /* Variable [X1], [Y0], [Z2], ... */
-  Const(Constant),          /* Constant [a], [b], [c], ... */
-  App(Constant, Vec<Term>) /* Compound term [f(t_1,...,t_n)] */
+  Const(Constant),          /* Constant [a], [b], [c], ...    */
+  App(Constant, Vec<Term>)  /* Compound term [f(t_1,...,t_n)] */
 }
 
 /* Atomic proposition [p(t_1, ..., t_n)] */
