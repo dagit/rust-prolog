@@ -105,6 +105,16 @@ fn main() {
     });
 
     let mut db: Database = vec![];
+    /* Load up the standard prelude */
+    let prelude_str = include_str!("prelude.pl");
+    match parse_Toplevel(&prelude_str, Lexer::new(&prelude_str)) {
+      Ok(cmds) => match exec_cmds(&mut db, &cmds, &interrupted) {
+          Status::Quit   => panic!("$quit from prelude"),
+          Status::Err(_) => panic!("Exiting due to unexpected error in prelude"),
+          _              => ()
+      },
+      _        => panic!("Failed to parse prelude")
+    }
 
     println!(r#"Welcome to miniprolog!"#);
     println!(r#"This prolog interpreter is based on the ML code at the PLZoo:"#);
