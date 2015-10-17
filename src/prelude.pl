@@ -4,12 +4,12 @@ eq(X,X).
 # Lists
 
 ## Constructors:
-nil.
-cons(X,Y).
+# nil.
+# cons(X,Y).
 
 ## List relation:
 list(nil).
-list(cons(X,Y)).
+list(cons(X,Y)) :- list(Y).
 
 ## List append
 append(nil,X,X).
@@ -48,8 +48,8 @@ perm(L,cons(H,P)) :- delete(H,L,R), perm(R,P).
 # Natural Numbers
 
 ## Constructors:
-zero.
-succ(X).
+# zero.
+# succ(X).
 
 ## Nat relation:
 nat(zero).
