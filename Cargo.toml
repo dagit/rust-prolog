@@ -8,6 +8,7 @@ build = "build.rs" # LALRPOP preprocessing
 rustyline   = "*"
 regex       = "*"
 lazy_static = "*"
+ctrlc       = "*"
 
 [dependencies.lalrpop-util]
 version = "*"

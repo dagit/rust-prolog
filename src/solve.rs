@@ -1,5 +1,7 @@
 /* The prolog solver. */
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use syntax::{Database, Environment, Clause, Assertion, Term, Atom,
              string_of_env};
@@ -51,7 +53,7 @@ fn renumber_atom(n: i32, &(ref c, ref ts):&Atom) -> Atom {
    by [env]. It then gives the user the option to search for other
    solutions, as described by the list of choice points [ch], or to abort
    the current proof search. */
-fn display_solution(ch: &Vec<Choice>, env: &Environment, rl: &mut Editor<()>)
+fn display_solution(ch: &Vec<Choice>, env: &Environment, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
 -> Result<(), NoSolution>
 {
   /* This is probably the least efficient way to figure out
@@ -68,7 +70,7 @@ fn display_solution(ch: &Vec<Choice>, env: &Environment, rl: &mut Editor<()>)
       Ok(s) => {
         let input = s.trim();
         if input == "y" || input == "yes" || input == "" {
-          continue_search(ch, rl)
+          continue_search(ch, rl, interrupted)
         } else {
           Err(NoSolution)
         }
@@ -80,14 +82,14 @@ fn display_solution(ch: &Vec<Choice>, env: &Environment, rl: &mut Editor<()>)
 
 /* [continue_search ch] looks for other answers. It accepts a list of
    choices [ch]. It continues the search at the first choice in the list. */
-fn continue_search(ch: &Vec<Choice>, rl: &mut Editor<()>) -> Result<(), NoSolution>
+fn continue_search(ch: &Vec<Choice>, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>) -> Result<(), NoSolution>
 {
   if ch.is_empty() {
     Err(NoSolution)
   } else {
     let mut ch = ch.clone();
     let (asrl, env, gs, n) = ch.pop().expect(concat!(file!(), ":", line!()));
-    solve(&ch, &asrl, &env, &gs, n, rl)
+    solve(&ch, &asrl, &env, &gs, n, rl, interrupted)
   }
 }
 
@@ -110,12 +112,15 @@ fn solve(ch:          &Vec<Choice>,
          env:         &Environment,
          c:           &Clause,
          n:           i32,
-         rl:          &mut Editor<()>)
+         rl:          &mut Editor<()>,
+         interrupted: &Arc<AtomicBool>)
 -> Result<(), NoSolution>
 {
   if c.is_empty() {
     /* All atoms are solved, we found a solution */
-    display_solution(ch, env, rl)
+    display_solution(ch, env, rl, interrupted)
+  } else if interrupted.load(Ordering::SeqCst) {
+    Err(NoSolution)
   } else {
     /* Reduce the first atom in the clause */
     let mut new_c = c.clone();
@@ -123,7 +128,7 @@ fn solve(ch:          &Vec<Choice>,
     match reduce_atom(env, n, &a, asrl) {
       None =>
         /* This clause cannot be solved, look for other solutions */
-        continue_search(ch, rl),
+        continue_search(ch, rl, interrupted),
       Some((new_asrl, new_env, d)) => {
         /* The atom was reduced to subgoals [d]. Continue
            search with the subgoals added to the list of goals. */
@@ -132,7 +137,7 @@ fn solve(ch:          &Vec<Choice>,
         ch.push((new_asrl,env.clone(),c.clone(),n));
         let d  = d.into_iter().chain(new_c.into_iter())
                   .collect::<Clause>();
-        solve(&ch, asrl, &new_env, &d, n+1, rl)
+        solve(&ch, asrl, &new_env, &d, n+1, rl, interrupted)
       }
     }
   }
@@ -163,8 +168,8 @@ fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &Database)
 /* [solve_toplevel c] searches for the proof of clause [c] using
    the "global" database. This function is called from the main
    program */
-pub fn solve_toplevel(db: &Database, c: &Clause, rl: &mut Editor<()>) {
-  match solve(&vec![], db, &HashMap::new(), c, 1, rl) {
+pub fn solve_toplevel(db: &Database, c: &Clause, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>) {
+  match solve(&vec![], db, &HashMap::new(), c, 1, rl, interrupted) {
     Err(NoSolution) => println!("No"),
     Ok(()) => ()
   }
