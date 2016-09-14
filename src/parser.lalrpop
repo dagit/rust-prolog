@@ -7,7 +7,9 @@ use syntax::ToplevelCmd::*;
 use token::*;
 use token::Token::*;
 
-grammar<'input>(text: &'input str)["LALR(1)"];
+use std::str::FromStr;
+
+grammar<'input>(text: &'input str);
 
 // This defines the interface with the lexer
 extern {

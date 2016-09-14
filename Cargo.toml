@@ -5,15 +5,12 @@ authors = ["dagit <dagitj@gmail.com>"]
 build = "build.rs" # LALRPOP preprocessing
 
 [dependencies]
-rl-sys      = "*"
-ctrlc       = "*"
+rustyline   = "*"
 regex       = "*"
 lazy_static = "*"
 
 [dependencies.lalrpop-util]
-git = "https://github.com/nikomatsakis/lalrpop.git"
-#version = "*"
+version = "*"
 
 [build-dependencies.lalrpop]
-git = "https://github.com/nikomatsakis/lalrpop.git"
-#version = "*"
+version = "*"

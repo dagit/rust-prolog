@@ -1,8 +1,7 @@
 #[macro_use]
 extern crate lazy_static;   // lazy static initializers
 extern crate lalrpop_util;  // parser generator
-extern crate rl_sys;        // provides readline
-extern crate ctrlc;         // Wrapper for handling Ctrl-C
+extern crate rustyline;     // line editing and ctrl+c handling
 extern crate regex;
 
 pub mod syntax;
@@ -15,10 +14,6 @@ pub mod parser; // lalrpop generated parser
 use std::fs::File;
 use std::io::Error;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-
-
 use parser::parse_Toplevel;
 
 use solve::{solve_toplevel, assert};
@@ -26,6 +21,8 @@ use syntax::Database;
 use syntax::ToplevelCmd;
 use syntax::ToplevelCmd::*;
 use lexer::Lexer;
+
+use rustyline::Editor;
 
 enum Status<E> {
   Ok,
@@ -37,13 +34,13 @@ enum Status<E> {
    Returns Some() when the computation succeeded and None
    when the command failed.
 */
-fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, interrupted: &Arc<AtomicBool>)
+fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>)
 -> Status<Error> {
   match cmd {
-    &Assert(ref a) => { assert(db, a.clone());               Status::Ok },
-    &Goal(ref g)   => { solve_toplevel(db, &g, interrupted); Status::Ok },
+    &Assert(ref a) => { assert(db, a.clone());  Status::Ok },
+    &Goal(ref g)   => { solve_toplevel(db, &g, rl); Status::Ok },
     &Quit          => Status::Quit,
-    &Use(ref file) => match exec_file(db, &file, interrupted) {
+    &Use(ref file) => match exec_file(db, &file, rl) {
       Status::Err(e) => {
         println!("Failed to execute file {}, {}", file, e);
         /* We could return the error here, but that causes the interpreter
@@ -56,7 +53,7 @@ fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, interrupted: &Arc<AtomicBool>)
 }
 
 /* [exec_file fn] executes the contents of file [fn]. */
-fn exec_file(db: &mut Database, filename: &String, interrupted: &Arc<AtomicBool>)
+fn exec_file(db: &mut Database, filename: &String, rl: &mut Editor<()>)
 -> Status<Error> {
   use std::io::prelude::Read;
   match File::open(filename) {
@@ -67,7 +64,7 @@ fn exec_file(db: &mut Database, filename: &String, interrupted: &Arc<AtomicBool>
         Err(e) => return Status::Err(e),
         Ok(_)  => {
           match parse_Toplevel(&s, Lexer::new(&s)) {
-            Ok(cmds) => exec_cmds(db, &cmds, interrupted),
+            Ok(cmds) => exec_cmds(db, &cmds, rl),
             Err(_)   => { println!("Parse error"); Status::Ok }
           }
         }
@@ -77,12 +74,12 @@ fn exec_file(db: &mut Database, filename: &String, interrupted: &Arc<AtomicBool>
 }
 
 /* [exec_cmds cmds] executes the list of toplevel commands [cmds]. */
-fn exec_cmds(db: &mut Database, cmds: &Vec<ToplevelCmd>, interrupted: &Arc<AtomicBool>)
+fn exec_cmds(db: &mut Database, cmds: &Vec<ToplevelCmd>, rl: &mut Editor<()>)
 -> Status<Error>
 {
   let mut ret : Status<Error> = Status::Ok;
   for &ref cmd in cmds.iter() {
-    match exec_cmd(db, cmd, interrupted) {
+    match exec_cmd(db, cmd, rl) {
       Status::Quit   => { ret = Status::Quit; break },
       Status::Err(e) => { ret = Status::Err(e); break },
       _              => continue
@@ -92,23 +89,14 @@ fn exec_cmds(db: &mut Database, cmds: &Vec<ToplevelCmd>, interrupted: &Arc<Atomi
 }
 
 fn main() {
-    use rl_sys::{readline, add_history};
-    use ctrlc::CtrlC;
-    // This is for handling Ctrl-C. We note the interruption
-    // so that we can check for it inside the computations, and
-    // abort as requested.
-    let interrupted = Arc::new(AtomicBool::new(false));
-    let i = interrupted.clone();
-    CtrlC::set_handler(move || {
-        i.store(true, Ordering::SeqCst);
-        println!("Interrupted by user");
-    });
+    use rustyline::error::ReadlineError;
 
+    let mut rl = Editor::<()>::new();
     let mut db: Database = vec![];
     /* Load up the standard prelude */
     let prelude_str = include_str!("prelude.pl");
     match parse_Toplevel(&prelude_str, Lexer::new(&prelude_str)) {
-      Ok(cmds) => match exec_cmds(&mut db, &cmds, &interrupted) {
+      Ok(cmds) => match exec_cmds(&mut db, &cmds, &mut rl) {
           Status::Quit   => panic!("$quit from prelude"),
           Status::Err(_) => panic!("Exiting due to unexpected error in prelude"),
           _              => ()
@@ -127,24 +115,37 @@ fn main() {
     println!(r#"    $quit                Exit interpreter."#);
     println!(r#"    $use "filename"      Execute commands from a file."#);
 
-    let prompt = "Prolog> ".to_string();
+    let prompt = "Prolog> ";
 
-    while let Some(s) = readline(prompt.clone()) {
-      if s == "" { continue };
-      // First add it to the history
-      add_history(s.clone());
-      /* Always reset the state of interrupted before we start processing */
-      interrupted.store(false, Ordering::SeqCst);
-      match parse_Toplevel(&s, Lexer::new(&s)) {
-        Ok(commands)  => match exec_cmds(&mut db, &commands, &interrupted) {
-          Status::Quit   => return,
-          Status::Err(e) => {
-            println!("Exiting due to unexpected error: {}", e);
-            return
-          },
-          _              => continue
+    loop {
+      let readline = rl.readline(&prompt);
+      match readline {
+        Ok(s) => {
+          if s == "" { continue };
+          // First add it to the history
+          rl.add_history_entry(&s);
+          match parse_Toplevel(&s, Lexer::new(&s)) {
+            Ok(commands)  => match exec_cmds(&mut db, &commands, &mut rl) {
+              Status::Quit   => return,
+              Status::Err(e) => {
+                println!("Exiting due to unexpected error: {}", e);
+                return
+              },
+              _              => continue
+            },
+            Err(_)        => println!("Parse error")
+          }
         },
-        Err(_)        => println!("Parse error")
+        Err(ReadlineError::Interrupted) => {
+          println!("Interrupted by user");
+        },
+        Err(ReadlineError::Eof) => {
+          break
+        },
+        Err(err) => {
+          println!("Error: {:?}", err);
+          break
+        }
       }
     }
 }
