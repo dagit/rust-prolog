@@ -94,72 +94,82 @@ fn exec_cmds(db: &mut Database, cmds: &Vec<ToplevelCmd>, rl: &mut Editor<()>, in
 
 fn main() {
     use rustyline::error::ReadlineError;
+    use std::thread;
+    
+    /* We create a new thread for the interpreter because that's the
+     * simplest way to increase the stack size. Which we need to do
+     * because we allocated everything on the stack and the default
+     * stack size is pretty small.
+     */
+    let interpreter = thread::Builder::new().stack_size(128 * 1028 * 1024).spawn(move || {
 
-    // This is for handling Ctrl-C. We note the interruption
-    // so that we can check for it inside the computations, and
-    // abort as requested.
-    let interrupted = Arc::new(AtomicBool::new(false));
-    let i = interrupted.clone();
-    ctrlc::set_handler(move || {
-        i.store(true, Ordering::SeqCst);
-        println!("Interrupted by user");
-    });
+        // This is for handling Ctrl-C. We note the interruption
+        // so that we can check for it inside the computations, and
+        // abort as requested.
+        let interrupted = Arc::new(AtomicBool::new(false));
+        let i = interrupted.clone();
+        ctrlc::set_handler(move || {
+            i.store(true, Ordering::SeqCst);
+            println!("Interrupted by ctrl-c");
+        });
+        
+        let mut rl = Editor::<()>::new();
+        let mut db: Database = vec![];
+        /* Load up the standard prelude */
+        let prelude_str = include_str!("prelude.pl");
+        match parse_Toplevel(&prelude_str, Lexer::new(&prelude_str)) {
+            Ok(cmds) => match exec_cmds(&mut db, &cmds, &mut rl, &interrupted) {
+                Status::Quit   => panic!("$quit from prelude"),
+                Status::Err(_) => panic!("Exiting due to unexpected error in prelude"),
+                _              => ()
+            },
+            _                => panic!("Failed to parse prelude")
+        }
 
-    let mut rl = Editor::<()>::new();
-    let mut db: Database = vec![];
-    /* Load up the standard prelude */
-    let prelude_str = include_str!("prelude.pl");
-    match parse_Toplevel(&prelude_str, Lexer::new(&prelude_str)) {
-        Ok(cmds) => match exec_cmds(&mut db, &cmds, &mut rl, &interrupted) {
-            Status::Quit   => panic!("$quit from prelude"),
-            Status::Err(_) => panic!("Exiting due to unexpected error in prelude"),
-            _              => ()
-        },
-        _                => panic!("Failed to parse prelude")
-    }
+        println!(r#"Welcome to miniprolog!"#);
+        println!(r#"This prolog interpreter is based on the ML code at the PLZoo:"#);
+        println!(r#"  http://andrej.com/plzoo/html/miniprolog.html"#);
+        println!(r#""#);
+        println!(r#"Input syntax: "#);
+        println!(r#"    ?- query.            Make a query."#);
+        println!(r#"    a(t1, ..., tn).      Assert an atomic proposition."#);
+        println!(r#"    A :- B1, ..., Bn.    Assert an inference rule."#);
+        println!(r#"    $quit                Exit interpreter."#);
+        println!(r#"    $use "filename"      Execute commands from a file."#);
 
-    println!(r#"Welcome to miniprolog!"#);
-    println!(r#"This prolog interpreter is based on the ML code at the PLZoo:"#);
-    println!(r#"  http://andrej.com/plzoo/html/miniprolog.html"#);
-    println!(r#""#);
-    println!(r#"Input syntax: "#);
-    println!(r#"    ?- query.            Make a query."#);
-    println!(r#"    a(t1, ..., tn).      Assert an atomic proposition."#);
-    println!(r#"    A :- B1, ..., Bn.    Assert an inference rule."#);
-    println!(r#"    $quit                Exit interpreter."#);
-    println!(r#"    $use "filename"      Execute commands from a file."#);
+        let prompt = "Prolog> ";
 
-    let prompt = "Prolog> ";
-
-    loop {
-        let readline = rl.readline(&prompt);
-        match readline {
-            Ok(s) => {
-                if s == "" { continue };
-                // First add it to the history
-                rl.add_history_entry(&s);
-                match parse_Toplevel(&s, Lexer::new(&s)) {
-                    Ok(commands)  => match exec_cmds(&mut db, &commands, &mut rl, &interrupted) {
-                        Status::Quit   => return,
-                        Status::Err(e) => {
-                            println!("Exiting due to unexpected error: {}", e);
-                            return
+        loop {
+            let readline = rl.readline(&prompt);
+            match readline {
+                Ok(s) => {
+                    if s == "" { continue };
+                    // First add it to the history
+                    rl.add_history_entry(&s);
+                    match parse_Toplevel(&s, Lexer::new(&s)) {
+                        Ok(commands)  => match exec_cmds(&mut db, &commands, &mut rl, &interrupted) {
+                            Status::Quit   => return,
+                            Status::Err(e) => {
+                                println!("Exiting due to unexpected error: {}", e);
+                                return
+                            },
+                            _              => continue
                         },
-                        _              => continue
-                    },
-                    Err(_)        => println!("Parse error")
+                        Err(_)        => println!("Parse error")
+                    }
+                },
+                Err(ReadlineError::Interrupted) => {
+                    println!("Interrupted by user");
+                },
+                Err(ReadlineError::Eof) => {
+                    break
+                },
+                Err(err) => {
+                    println!("Error: {:?}", err);
+                    break
                 }
-            },
-            Err(ReadlineError::Interrupted) => {
-                println!("Interrupted by user");
-            },
-            Err(ReadlineError::Eof) => {
-                break
-            },
-            Err(err) => {
-                println!("Error: {:?}", err);
-                break
             }
         }
-    }
+    }).unwrap();
+    interpreter.join().unwrap();
 }
