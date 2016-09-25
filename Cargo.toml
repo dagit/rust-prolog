@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["dagit <dagitj@gmail.com>"]
 build = "build.rs" # LALRPOP preprocessing
 
+[profile.dev]
+opt-level = 2
+debug = true
+
 [dependencies]
 rustyline   = "*"
 regex       = "*"
