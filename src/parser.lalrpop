@@ -5,9 +5,6 @@ use syntax::Term::*;
 use syntax::ToplevelCmd::*;
 
 use token::*;
-use token::Token::*;
-
-use std::str::FromStr;
 
 grammar<'input>(text: &'input str);
 
@@ -18,15 +15,15 @@ extern {
   enum Token<'input> {
     "VAR"        => Token::VAR(<&'input str>),
     "CONST"      => Token::CONST(<&'input str>),
-    "FROM"       => Token::FROM(..),
-    "COMMA"      => Token::COMMA(..),
-    "TRUE"       => Token::TRUE(..),
-    "PERIOD"     => Token::PERIOD(..),
-    "LPAREN"     => Token::LPAREN(..),
-    "RPAREN"     => Token::RPAREN(..),
-    "GOAL"       => Token::GOAL(..),
-    "QUIT"       => Token::QUIT(..),
-    "USE"        => Token::USE(..),
+    "FROM"       => Token::FROM{..},
+    "COMMA"      => Token::COMMA{..},
+    "TRUE"       => Token::TRUE{..},
+    "PERIOD"     => Token::PERIOD{..},
+    "LPAREN"     => Token::LPAREN{..},
+    "RPAREN"     => Token::RPAREN{..},
+    "GOAL"       => Token::GOAL{..},
+    "QUIT"       => Token::QUIT{..},
+    "USE"        => Token::USE{..},
     "STRING"     => Token::STRING(<&'input str>),
   }
 }
