@@ -13,18 +13,18 @@ pub struct Error {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Token<'input> {
-  VAR(&'input str),
-  CONST(&'input str),
-  FROM,
-  COMMA,
-  TRUE,
-  PERIOD,
-  LPAREN,
-  RPAREN,
-  GOAL,
-  QUIT,
-  USE,
-  STRING(&'input str),
-  EOF,
+    VAR(&'input str),
+    CONST(&'input str),
+    FROM,
+    COMMA,
+    TRUE,
+    PERIOD,
+    LPAREN,
+    RPAREN,
+    GOAL,
+    QUIT,
+    USE,
+    STRING(&'input str),
+    EOF,
 }
 
