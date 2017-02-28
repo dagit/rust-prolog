@@ -111,7 +111,7 @@ fn main() {
         ctrlc::set_handler(move || {
             i.store(true, Ordering::SeqCst);
             println!("Interrupted by ctrl-c");
-        });
+        }).expect("Error setting Ctrl-C handler");
         
         let mut rl = Editor::<()>::new();
         let mut db: Database = vec![];

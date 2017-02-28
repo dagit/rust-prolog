@@ -44,10 +44,10 @@ impl<'input> Lexer<'input> {
                             -> Option<Token<'input>>
         where F: Fn(&'input str) -> Token
     {
-        if let Some((start,end)) = re.find(text) {
-            *pos += end;
-            let ret = Some(action(&text[start..end]));
-            *text = &text[end..];
+        if let Some(mat) = re.find(text) {
+            *pos += mat.end();
+            let ret = Some(action(&text[mat.start()..mat.end()]));
+            *text = &text[mat.end()..];
             ret
         } else {
             None
@@ -59,19 +59,19 @@ impl<'input> Lexer<'input> {
         whitespace so that we can count line numbers
          */
         loop {
-            if let Some((_,end)) = COMMENT.find(self.text) {
+            if let Some(mat) = COMMENT.find(self.text) {
                 self.line += 1;
-                self.pos  += end;
-                self.text = &self.text[end..];
+                self.pos  += mat.end();
+                self.text = &self.text[mat.end()..];
                 continue
-            } else if let Some((_,end)) = NEWLINE.find(self.text) {
+            } else if let Some(mat) = NEWLINE.find(self.text) {
                 self.line += 1;
-                self.pos  += end;
-                self.text = &self.text[end..];
+                self.pos  += mat.end();
+                self.text = &self.text[mat.end()..];
                 continue
-            } else if let Some((_,end)) = WS.find(self.text) {
-                self.pos += end;
-                self.text = &self.text[end..];
+            } else if let Some(mat) = WS.find(self.text) {
+                self.pos += mat.end();
+                self.text = &self.text[mat.end()..];
                 continue
             }
             break;
