@@ -12,7 +12,7 @@ lazy_static! {
     static ref VAR     : Regex = Regex::new(r"^[A-Z][_a-zA-Z0-9]*").unwrap();
     static ref COMMENT : Regex = Regex::new(r"^#[^\n]*\n"         ).unwrap();
     static ref NEWLINE : Regex = Regex::new(r"^\n"                ).unwrap();
-    static ref WS      : Regex = Regex::new(r"^[:blank:]"         ).unwrap();
+    static ref WS      : Regex = Regex::new(r"^[[:blank:]]"       ).unwrap();
     static ref USE     : Regex = Regex::new(r"^\$use"             ).unwrap();
     static ref QUIT    : Regex = Regex::new(r"^\$quit"            ).unwrap();
     static ref GOAL    : Regex = Regex::new(r"^\?-"               ).unwrap();
