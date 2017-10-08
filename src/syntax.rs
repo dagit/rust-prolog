@@ -67,33 +67,33 @@ as specified by the associative list [s]. It substitutes
 repeatedly until the terms stop changing, so this is not the
 usual kind of substitution. It is what we need during unification */
 pub fn subst_term(env: &Environment, t: &Term) -> Term {
-    match t {
-        &Term::Var(ref x) => {
-            let new_t = lookup(env, &x);
+    match *t {
+        Term::Var(ref x) => {
+            let new_t = lookup(env, x);
             if *t == new_t {
                 new_t
             } else {
                 subst_term(env, &new_t)
             }
         },
-        &Term::Const(_) => t.clone(),
-        &Term::App(ref c, ref ls) => {
+        Term::Const(_) => t.clone(),
+        Term::App(ref c, ref ls) => {
             let mut new_ls = Vec::with_capacity(ls.len());
             for l in ls.iter() {
                 new_ls.push(subst_term(env, l));
             }
-            return Term::App(c.clone(), new_ls)
+            Term::App(c.clone(), new_ls)
         }
     }
 }
 
 /* [string_of_term t] converts term [t] to its string representation. */
 fn string_of_term(t: &Term) -> String {
-    match t {
-        &Term::Var((ref v, 0)) => v.clone(),
-        &Term::Var((ref v, n)) => v.clone() + &n.to_string(),
-        &Term::Const(ref c) => c.clone(),
-        &Term::App(ref f, ref ls) => {
+    match *t {
+        Term::Var((ref v, 0)) => v.clone(),
+        Term::Var((ref v, n)) => v.clone() + &n.to_string(),
+        Term::Const(ref c) => c.clone(),
+        Term::App(ref f, ref ls) => {
             let mut strings = Vec::with_capacity(ls.len());
             for l in ls.iter() {
                 strings.push(string_of_term(l));
@@ -113,7 +113,7 @@ pub fn string_of_env(env: &Environment) -> String {
         .map( |(&(ref x,ref y), z)|
                   ((x.clone(),y.clone()),z.clone()) )
         .collect::<Environment>();
-    if toplevels.len() == 0 {
+    if toplevels.is_empty() {
         "Yes".to_string()
     } else {
         let res = toplevels.iter()
@@ -128,7 +128,7 @@ pub fn string_of_env(env: &Environment) -> String {
 /* [exists fn ls] returns [true] if [fn] returns true on at least
 one element of [ls], and returns [false] otherwise.
 This was added to mimic the standard ML List.exists function. */
-fn exists<P, A>(predicate: P, ls:&Vec<A>) -> bool
+fn exists<P, A>(predicate: P, ls: &[A]) -> bool
     where P: Fn(&A) -> bool {
     for x in ls.iter() {
         if predicate(x) {
@@ -141,9 +141,9 @@ fn exists<P, A>(predicate: P, ls:&Vec<A>) -> bool
 /* [occurs x t] returns [true] when variable instance [x] appears in
 term [t]. */
 pub fn occurs(x: &Variable, t: &Term) -> bool {
-    match t {
-        &Term::Var(ref y)     => x == y,
-        &Term::Const(_)       => false,
-        &Term::App(_, ref ts) => exists(|&ref t| occurs(x, &t), ts)
+    match *t {
+        Term::Var(ref y)     => x == y,
+        Term::Const(_)       => false,
+        Term::App(_, ref ts) => exists(|t| occurs(x, t), ts)
     }
 }

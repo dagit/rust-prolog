@@ -29,13 +29,13 @@ struct NoSolution;
 /* [renumber_term t n] renumbers all variable instances occurring in
 term [t] so that they have level [n]. */
 fn renumber_term(n: i32, t: &Term) -> Term {
-    match t {
-        &Term::Var((ref x, _))    => Term::Var((x.clone(),n)),
-        &Term::Const(ref c)       => Term::Const(c.clone()),
-        &Term::App(ref c, ref ts) => Term::App(c.clone(),
+    match *t {
+        Term::Var((ref x, _))    => Term::Var((x.clone(),n)),
+        Term::Const(ref c)       => Term::Const(c.clone()),
+        Term::App(ref c, ref ts) => Term::App(c.clone(),
                                             ts.iter()
-                                            .map( |&ref t|
-                                                    renumber_term(n, &t) )
+                                            .map( |t|
+                                                    renumber_term(n, t) )
                                             .collect::<Vec<Term>>())
     }
 }
@@ -44,8 +44,8 @@ fn renumber_term(n: i32, t: &Term) -> Term {
 atom [a] so that they have level [n]. */
 fn renumber_atom(n: i32, &(ref c, ref ts):&Atom) -> Atom {
     (c.clone(), ts.iter()
-     .map( |&ref t|
-             renumber_term(n, &t) )
+     .map( |t|
+             renumber_term(n, t) )
      .collect::<Vec<Term>>() )
 }
 
@@ -58,8 +58,8 @@ fn display_solution(ch: &Vec<Choice>, env: &Environment, rl: &mut Editor<()>, in
 {
     /* This is probably the least efficient way to figure out
     when we're done */
-    let answer = string_of_env(&env);
-    if answer == "Yes".to_string() {
+    let answer = string_of_env(env);
+    if answer == "Yes" {
         Ok(println!("Yes"))
     } else if ch.is_empty() {
         Ok(println!("{}", answer))
@@ -159,7 +159,7 @@ fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &Database)
             Err(_)       => reduce_atom(env, n, a, &asrl2),
             Ok(new_env)  => Some((asrl2, new_env,
                                  lst.iter()
-                                 .map( |&ref l| renumber_atom(n, &l))
+                                 .map( |l| renumber_atom(n, l))
                                  .collect::<Clause>()))
         }
     }
