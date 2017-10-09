@@ -3,7 +3,6 @@ use syntax::{Environment, Term, Atom, subst_term, occurs};
 /* [NoUnify] is used when terms cannot be unified. */
 pub struct NoUnify;
 
-
 /* [unify_terms env t1 t2] unifies terms [t1] and [t2] in the current
 environment [env]. On success it returns the environment extended with
 the result of unification. On failure it raises [NoUnify]. */
@@ -39,7 +38,7 @@ fn unify_terms(env:&Environment, t1: &Term, t2: &Term)
 environment [env] and returns a new environment [env'] on success. It
 returns [NoUnify] on failure or if the lists are not equal length.
  */
-fn unify_lists(env: &Environment, lst1: &Vec<Term>, lst2: &Vec<Term>)
+fn unify_lists(env: &Environment, lst1: &[Term], lst2: &[Term])
                -> Result<Environment, NoUnify>
 {
     if lst1.len() != lst2.len() {
@@ -48,9 +47,9 @@ fn unify_lists(env: &Environment, lst1: &Vec<Term>, lst2: &Vec<Term>)
         lst1.iter()
             .zip(lst2.iter())
             .fold( Ok(env.clone()),
-                   |ne, (&ref l1,&ref l2)|
+                   |ne, (l1, l2)|
                    match ne {
-                       Ok(new_env) => unify_terms(&new_env, &l1, &l2),
+                       Ok(new_env) => unify_terms(&new_env, l1, l2),
                        Err(_)      => Err(NoUnify)
                    })
     }
@@ -65,7 +64,7 @@ pub fn unify_atoms(env: &Environment,
                    -> Result<Environment, NoUnify>
 {
     if c1 == c2 {
-        unify_lists(env, &ts1, &ts2)
+        unify_lists(env, ts1, ts2)
     } else {
         Err(NoUnify)
     }

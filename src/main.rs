@@ -40,11 +40,11 @@ when the command failed.
  */
 fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
             -> Status<Error> {
-    match cmd {
-        &Assert(ref a) => { assert(db, a.clone());  Status::Ok },
-        &Goal(ref g)   => { solve_toplevel(db, &g, rl, interrupted); Status::Ok },
-        &Quit          => Status::Quit,
-        &Use(ref file) => match exec_file(db, &file, rl, interrupted) {
+    match *cmd {
+        Assert(ref a) => { assert(db, a.clone());  Status::Ok },
+        Goal(ref g)   => { solve_toplevel(db, g, rl, interrupted); Status::Ok },
+        Quit          => Status::Quit,
+        Use(ref file) => match exec_file(db, file, rl, interrupted) {
             Status::Err(e) => {
                 println!("Failed to execute file {}, {}", file, e);
                 /* We could return the error here, but that causes the interpreter
@@ -57,15 +57,15 @@ fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupt
 }
 
 /* [exec_file fn] executes the contents of file [fn]. */
-fn exec_file(db: &mut Database, filename: &String, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
+fn exec_file(db: &mut Database, filename: &str, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
              -> Status<Error> {
     use std::io::prelude::Read;
     match File::open(filename) {
-        Err(e)    => return Status::Err(e),
+        Err(e)    => Status::Err(e),
         Ok(mut f) => {
             let mut s = String::new();
             match f.read_to_string(&mut s) {
-                Err(e) => return Status::Err(e),
+                Err(e) => Status::Err(e),
                 Ok(_)  => {
                     match parse_Toplevel(&s, Lexer::new(&s)) {
                         Ok(cmds) => exec_cmds(db, &cmds, rl, interrupted),
@@ -78,11 +78,11 @@ fn exec_file(db: &mut Database, filename: &String, rl: &mut Editor<()>, interrup
 }
 
 /* [exec_cmds cmds] executes the list of toplevel commands [cmds]. */
-fn exec_cmds(db: &mut Database, cmds: &Vec<ToplevelCmd>, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
+fn exec_cmds(db: &mut Database, cmds: &[ToplevelCmd], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
              -> Status<Error>
 {
     let mut ret : Status<Error> = Status::Ok;
-    for &ref cmd in cmds.iter() {
+    for cmd in cmds.iter() {
         match exec_cmd(db, cmd, rl, interrupted) {
             Status::Quit   => { ret = Status::Quit; break },
             Status::Err(e) => { ret = Status::Err(e); break },
@@ -117,7 +117,7 @@ fn main() {
         let mut db: Database = vec![];
         /* Load up the standard prelude */
         let prelude_str = include_str!("prelude.pl");
-        match parse_Toplevel(&prelude_str, Lexer::new(&prelude_str)) {
+        match parse_Toplevel(prelude_str, Lexer::new(prelude_str)) {
             Ok(cmds) => match exec_cmds(&mut db, &cmds, &mut rl, &interrupted) {
                 Status::Quit   => panic!("$quit from prelude"),
                 Status::Err(_) => panic!("Exiting due to unexpected error in prelude"),
@@ -140,7 +140,7 @@ fn main() {
         let prompt = "Prolog> ";
 
         loop {
-            let readline = rl.readline(&prompt);
+            let readline = rl.readline(prompt);
             match readline {
                 Ok(s) => {
                     if s == "" { continue };
