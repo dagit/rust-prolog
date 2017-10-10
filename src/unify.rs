@@ -22,14 +22,14 @@ fn unify_terms(env:&Environment, t1: &Term, t2: &Term)
                 new_env.insert(y,t);
                 Ok(new_env)
             },
-            (Term::Const(_), _) => Err(NoUnify),
             (Term::App (c1, ts1), Term::App (c2, ts2)) =>
                 if c1 == c2 {
                     unify_lists(env, &ts1, &ts2)
                 } else {
                     Err(NoUnify)
                 },
-            (_, _) => Err(NoUnify)
+            (Term::Const(_), _) |
+            (_             , _) => Err(NoUnify)
         }
     }
 }

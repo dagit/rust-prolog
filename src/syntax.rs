@@ -30,6 +30,7 @@ pub type Atom = (Constant, Vec<Term>);
 /* A conjunction of atomic propositions [p_1, ..., p_n]. The empty
 list represens [true]. */
 pub type Clause = Vec<Atom>;
+pub type ClauseSlice = [Atom];
 
 /* An assertion [(a,b_1,...,b_n)] is a Horn formula
 [b_1 & ... & b_n => a]. */
@@ -42,6 +43,7 @@ pub type Environment = HashMap<Variable, Term>;
 
 /* A database is a list of assertions. It represents the current program. */
 pub type Database = Vec<Assertion>;
+pub type DBSlice  = [Assertion];
 
 /* Toplevel commands */
 #[derive(PartialEq, Clone)]
@@ -111,7 +113,7 @@ pub fn string_of_env(env: &Environment) -> String {
         .filter( |&(&(_,n),_) | n==0)
     /* This creates copies and is unnecessary */
         .map( |(&(ref x,ref y), z)|
-                  ((x.clone(),y.clone()),z.clone()) )
+                  ((x.clone(),*y),z.clone()) )
         .collect::<Environment>();
     if toplevels.is_empty() {
         "Yes".to_string()

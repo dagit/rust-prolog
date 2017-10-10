@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "cargo-clippy", allow(trivial_regex))]
 use regex::Regex;
 
 use token::Token;
@@ -54,7 +55,7 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    pub fn next(&mut self) -> Option<Token<'input>> {
+    pub fn next_token(&mut self) -> Option<Token<'input>> {
         /* Ignore comments and whitespace. We separate newline from the other
         whitespace so that we can count line numbers
          */
@@ -112,7 +113,7 @@ impl<'input> Iterator for Lexer<'input> {
     type Item = Result<Spanned<Token<'input>>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.next() {
+        match self.next_token() {
             /* TODO: fix this span */
             Some(t) => Some(Ok((0,t,0))),
             None    => None,

@@ -107,7 +107,7 @@ fn main() {
         // so that we can check for it inside the computations, and
         // abort as requested.
         let interrupted = Arc::new(AtomicBool::new(false));
-        let i = interrupted.clone();
+        let i = Arc::clone(&interrupted);
         ctrlc::set_handler(move || {
             i.store(true, Ordering::SeqCst);
             println!("Interrupted by ctrl-c");

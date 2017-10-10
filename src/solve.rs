@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use syntax::{Database, Environment, Clause, Assertion, Term, Atom,
+use syntax::{Database, DBSlice, Environment, Clause, ClauseSlice, Assertion, Term, Atom,
             string_of_env};
 use unify::{unify_atoms};
 use rustyline::Editor;
@@ -53,7 +53,7 @@ fn renumber_atom(n: i32, &(ref c, ref ts):&Atom) -> Atom {
 by [env]. It then gives the user the option to search for other
 solutions, as described by the list of choice points [ch], or to abort
 the current proof search. */
-fn display_solution(ch: &Vec<Choice>, env: &Environment, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
+fn display_solution(ch: &[Choice], env: &Environment, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
                     -> Result<(), NoSolution>
 {
     /* This is probably the least efficient way to figure out
@@ -82,12 +82,12 @@ fn display_solution(ch: &Vec<Choice>, env: &Environment, rl: &mut Editor<()>, in
 
 /* [continue_search ch] looks for other answers. It accepts a list of
 choices [ch]. It continues the search at the first choice in the list. */
-fn continue_search(ch: &Vec<Choice>, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>) -> Result<(), NoSolution>
+fn continue_search(ch: &[Choice], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>) -> Result<(), NoSolution>
 {
     if ch.is_empty() {
         Err(NoSolution)
     } else {
-        let mut ch = ch.clone();
+        let mut ch = ch.to_owned();
         let (asrl, env, gs, n) = ch.pop().expect(concat!(file!(), ":", line!()));
         solve(&ch, &asrl, &env, &gs, n, rl, interrupted)
     }
@@ -107,10 +107,10 @@ arguments are:
 When a solution is found, it is printed on the screen. The user
 then decides whether other solutions should be searched for.
  */
-fn solve(ch:          &Vec<Choice>,
-         asrl:        &Database,
+fn solve(ch:          &[Choice],
+         asrl:        &DBSlice,
          env:         &Environment,
-         c:           &Clause,
+         c:           &ClauseSlice,
          n:           i32,
          rl:          &mut Editor<()>,
          interrupted: &Arc<AtomicBool>)
@@ -123,7 +123,7 @@ fn solve(ch:          &Vec<Choice>,
         Err(NoSolution)
     } else {
         /* Reduce the first atom in the clause */
-        let mut new_c = c.clone();
+        let mut new_c = c.to_owned();
         let a = new_c.pop().expect(concat!(file!(), ":", line!()));
         match reduce_atom(env, n, &a, asrl) {
             None =>
@@ -133,8 +133,8 @@ fn solve(ch:          &Vec<Choice>,
                 /* The atom was reduced to subgoals [d]. Continue
                 search with the subgoals added to the list of goals. */
                 /* Add a new choice */
-                let mut ch = ch.clone();
-                ch.push((new_asrl,env.clone(),c.clone(),n));
+                let mut ch = ch.to_owned();
+                ch.push((new_asrl,env.clone(),c.to_owned(),n));
                 let d  = d.into_iter().chain(new_c.into_iter())
                     .collect::<Clause>();
                 solve(&ch, asrl, &new_env, &d, n+1, rl, interrupted)
@@ -146,13 +146,13 @@ fn solve(ch:          &Vec<Choice>,
 /* [reduce_atom a asrl] reduces atom [a] to subgoals by using the
 first assertion in the assertion list [asrl] whose conclusion matches
 [a]. It returns [None] if the atom cannot be reduced. */
-fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &Database)
+fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &DBSlice)
                -> Option<(Database, Environment, Clause)>
 {
     if local_asrl.is_empty() {
         None
     } else {
-        let mut asrl2 = local_asrl.clone();
+        let mut asrl2 = local_asrl.to_owned();
         let (b, lst)  = asrl2.pop().expect(concat!(file!(), ":", line!()));
         let try_env = unify_atoms(env, a, &renumber_atom(n, &b));
         match try_env {
@@ -168,8 +168,8 @@ fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &Database)
 /* [solve_toplevel c] searches for the proof of clause [c] using
 the "global" database. This function is called from the main
 program */
-pub fn solve_toplevel(db: &Database, c: &Clause, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>) {
-    match solve(&vec![], db, &HashMap::new(), c, 1, rl, interrupted) {
+pub fn solve_toplevel(db: &DBSlice, c: &ClauseSlice, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>) {
+    match solve(&[], db, &HashMap::new(), c, 1, rl, interrupted) {
         Err(NoSolution) => println!("No"),
         Ok(()) => ()
     }
