@@ -24,7 +24,10 @@ pub fn assert(database: &mut Database, a: Assertion) {
 }
 
 /* Exception [NoSolution] is raised when a goal cannot be proved. */
-struct NoSolution;
+enum Error {
+    NoSolution,
+    DepthExhausted,
+}
 
 /* [renumber_term t n] renumbers all variable instances occurring in
 term [t] so that they have level [n]. */
@@ -53,8 +56,8 @@ fn renumber_atom(n: i32, &(ref c, ref ts):&Atom) -> Atom {
 by [env]. It then gives the user the option to search for other
 solutions, as described by the list of choice points [ch], or to abort
 the current proof search. */
-fn display_solution(ch: &[Choice], env: &Environment, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
-                    -> Result<(), NoSolution>
+fn display_solution(ch: &[Choice], env: &Environment, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
+                    -> Result<(), Error>
 {
     /* This is probably the least efficient way to figure out
     when we're done */
@@ -70,26 +73,26 @@ fn display_solution(ch: &[Choice], env: &Environment, rl: &mut Editor<()>, inter
             Ok(s) => {
                 let input = s.trim();
                 if input == "y" || input == "yes" || input == "" {
-                    continue_search(ch, rl, interrupted)
+                    continue_search(ch, rl, interrupted, max_depth)
                 } else {
-                    Err(NoSolution)
+                    Err(Error::NoSolution)
                 }
             },
-            _  => { Err(NoSolution) }
+            _  => { Err(Error::NoSolution) }
         }
     }
 }
 
 /* [continue_search ch] looks for other answers. It accepts a list of
 choices [ch]. It continues the search at the first choice in the list. */
-fn continue_search(ch: &[Choice], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>) -> Result<(), NoSolution>
+fn continue_search(ch: &[Choice], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32) -> Result<(), Error>
 {
     if ch.is_empty() {
-        Err(NoSolution)
+        Err(Error::NoSolution)
     } else {
         let mut ch = ch.to_owned();
         let (asrl, env, gs, n) = ch.pop().expect(concat!(file!(), ":", line!()));
-        solve(&ch, &asrl, &env, &gs, n, rl, interrupted)
+        solve(&ch, &asrl, &env, &gs, n, rl, interrupted, max_depth)
     }
 }
 
@@ -113,14 +116,17 @@ fn solve(ch:          &[Choice],
          c:           &ClauseSlice,
          n:           i32,
          rl:          &mut Editor<()>,
-         interrupted: &Arc<AtomicBool>)
-         -> Result<(), NoSolution>
+         interrupted: &Arc<AtomicBool>,
+         max_depth:   i32)
+         -> Result<(), Error>
 {
     if c.is_empty() {
         /* All atoms are solved, we found a solution */
-        display_solution(ch, env, rl, interrupted)
+        display_solution(ch, env, rl, interrupted, max_depth)
     } else if interrupted.load(Ordering::SeqCst) {
-        Err(NoSolution)
+        Err(Error::NoSolution)
+    } else if n >= max_depth {
+        Err(Error::DepthExhausted)
     } else {
         /* Reduce the first atom in the clause */
         let mut new_c = c.to_owned();
@@ -128,7 +134,7 @@ fn solve(ch:          &[Choice],
         match reduce_atom(env, n, &a, asrl) {
             None =>
             /* This clause cannot be solved, look for other solutions */
-                continue_search(ch, rl, interrupted),
+                continue_search(ch, rl, interrupted, max_depth),
             Some((new_asrl, new_env, d)) => {
                 /* The atom was reduced to subgoals [d]. Continue
                 search with the subgoals added to the list of goals. */
@@ -137,7 +143,7 @@ fn solve(ch:          &[Choice],
                 ch.push((new_asrl,env.clone(),c.to_owned(),n));
                 let d  = d.into_iter().chain(new_c.into_iter())
                     .collect::<Clause>();
-                solve(&ch, asrl, &new_env, &d, n+1, rl, interrupted)
+                solve(&ch, asrl, &new_env, &d, n+1, rl, interrupted, max_depth)
             }
         }
     }
@@ -168,9 +174,14 @@ fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &DBSlice)
 /* [solve_toplevel c] searches for the proof of clause [c] using
 the "global" database. This function is called from the main
 program */
-pub fn solve_toplevel(db: &DBSlice, c: &ClauseSlice, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>) {
-    match solve(&[], db, &HashMap::new(), c, 1, rl, interrupted) {
-        Err(NoSolution) => println!("No"),
-        Ok(()) => ()
+pub fn solve_toplevel(db: &DBSlice, c: &ClauseSlice, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32) {
+    let mut depth = 0;
+    loop {
+        if depth >= max_depth { return println!("Search depth exhausted") }
+        match solve(&[], db, &HashMap::new(), c, 1, rl, interrupted, depth) {
+            Err(Error::DepthExhausted) => depth += 1,
+            Err(Error::NoSolution)     => return println!("No"),
+            Ok(())                     => return ()
+        }
     }
 }

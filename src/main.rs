@@ -38,13 +38,13 @@ enum Status<E> {
 Returns Some() when the computation succeeded and None
 when the command failed.
  */
-fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
+fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
             -> Status<Error> {
     match *cmd {
         Assert(ref a) => { assert(db, a.clone());  Status::Ok },
-        Goal(ref g)   => { solve_toplevel(db, g, rl, interrupted); Status::Ok },
+        Goal(ref g)   => { solve_toplevel(db, g, rl, interrupted, max_depth); Status::Ok },
         Quit          => Status::Quit,
-        Use(ref file) => match exec_file(db, file, rl, interrupted) {
+        Use(ref file) => match exec_file(db, file, rl, interrupted, max_depth) {
             Status::Err(e) => {
                 println!("Failed to execute file {}, {}", file, e);
                 /* We could return the error here, but that causes the interpreter
@@ -57,7 +57,7 @@ fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupt
 }
 
 /* [exec_file fn] executes the contents of file [fn]. */
-fn exec_file(db: &mut Database, filename: &str, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
+fn exec_file(db: &mut Database, filename: &str, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
              -> Status<Error> {
     use std::io::prelude::Read;
     match File::open(filename) {
@@ -68,7 +68,7 @@ fn exec_file(db: &mut Database, filename: &str, rl: &mut Editor<()>, interrupted
                 Err(e) => Status::Err(e),
                 Ok(_)  => {
                     match parse_Toplevel(&s, Lexer::new(&s)) {
-                        Ok(cmds) => exec_cmds(db, &cmds, rl, interrupted),
+                        Ok(cmds) => exec_cmds(db, &cmds, rl, interrupted, max_depth),
                         Err(_)   => { println!("Parse error"); Status::Ok }
                     }
                 }
@@ -78,12 +78,12 @@ fn exec_file(db: &mut Database, filename: &str, rl: &mut Editor<()>, interrupted
 }
 
 /* [exec_cmds cmds] executes the list of toplevel commands [cmds]. */
-fn exec_cmds(db: &mut Database, cmds: &[ToplevelCmd], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>)
+fn exec_cmds(db: &mut Database, cmds: &[ToplevelCmd], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
              -> Status<Error>
 {
     let mut ret : Status<Error> = Status::Ok;
     for cmd in cmds.iter() {
-        match exec_cmd(db, cmd, rl, interrupted) {
+        match exec_cmd(db, cmd, rl, interrupted, max_depth) {
             Status::Quit   => { ret = Status::Quit; break },
             Status::Err(e) => { ret = Status::Err(e); break },
             _              => continue
@@ -101,6 +101,7 @@ fn main() {
      * because we allocated everything on the stack and the default
      * stack size is pretty small.
      */
+    let max_depth = 1_000i32;
     let interpreter = thread::Builder::new().stack_size(128 * 1024 * 1024).spawn(move || {
 
         // This is for handling Ctrl-C. We note the interruption
@@ -118,7 +119,7 @@ fn main() {
         /* Load up the standard prelude */
         let prelude_str = include_str!("prelude.pl");
         match parse_Toplevel(prelude_str, Lexer::new(prelude_str)) {
-            Ok(cmds) => match exec_cmds(&mut db, &cmds, &mut rl, &interrupted) {
+            Ok(cmds) => match exec_cmds(&mut db, &cmds, &mut rl, &interrupted, max_depth) {
                 Status::Quit   => panic!("$quit from prelude"),
                 Status::Err(_) => panic!("Exiting due to unexpected error in prelude"),
                 _              => ()
@@ -147,7 +148,7 @@ fn main() {
                     // First add it to the history
                     rl.add_history_entry(&s);
                     match parse_Toplevel(&s, Lexer::new(&s)) {
-                        Ok(commands)  => match exec_cmds(&mut db, &commands, &mut rl, &interrupted) {
+                        Ok(commands)  => match exec_cmds(&mut db, &commands, &mut rl, &interrupted, max_depth) {
                             Status::Quit   => return,
                             Status::Err(e) => {
                                 println!("Exiting due to unexpected error: {}", e);
