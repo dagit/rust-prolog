@@ -101,7 +101,7 @@ fn main() {
      * because we allocated everything on the stack and the default
      * stack size is pretty small.
      */
-    let interpreter = thread::Builder::new().stack_size(128 * 1028 * 1024).spawn(move || {
+    let interpreter = thread::Builder::new().stack_size(128 * 1024 * 1024).spawn(move || {
 
         // This is for handling Ctrl-C. We note the interruption
         // so that we can check for it inside the computations, and
