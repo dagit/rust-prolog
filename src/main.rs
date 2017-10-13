@@ -21,7 +21,7 @@ use std::sync::Arc;
 use parser::parse_Toplevel;
 
 use solve::{solve_toplevel, assert};
-use syntax::Database;
+use syntax::{Atom/*,Database*/};
 use syntax::ToplevelCmd;
 use syntax::ToplevelCmd::*;
 use lexer::Lexer;
@@ -38,7 +38,7 @@ enum Status<E> {
 Returns Some() when the computation succeeded and None
 when the command failed.
  */
-fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
+fn exec_cmd(db: &mut Vec<(Atom, Vec<Atom>)>, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
             -> Status<Error> {
     match *cmd {
         Assert(ref a) => { assert(db, a.clone());  Status::Ok },
@@ -57,7 +57,7 @@ fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupt
 }
 
 /* [exec_file fn] executes the contents of file [fn]. */
-fn exec_file(db: &mut Database, filename: &str, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
+fn exec_file(db: &mut Vec<(Atom, Vec<Atom>)>, filename: &str, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
              -> Status<Error> {
     use std::io::prelude::Read;
     match File::open(filename) {
@@ -78,7 +78,7 @@ fn exec_file(db: &mut Database, filename: &str, rl: &mut Editor<()>, interrupted
 }
 
 /* [exec_cmds cmds] executes the list of toplevel commands [cmds]. */
-fn exec_cmds(db: &mut Database, cmds: &[ToplevelCmd], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
+fn exec_cmds(db: &mut Vec<(Atom, Vec<Atom>)>, cmds: &[ToplevelCmd], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
              -> Status<Error>
 {
     let mut ret : Status<Error> = Status::Ok;
@@ -115,7 +115,7 @@ fn main() {
         }).expect("Error setting Ctrl-C handler");
         
         let mut rl = Editor::<()>::new();
-        let mut db: Database = vec![];
+        let mut db: Vec<(Atom, Vec<Atom>)> = vec![];
         /* Load up the standard prelude */
         let prelude_str = include_str!("prelude.pl");
         match parse_Toplevel(prelude_str, Lexer::new(prelude_str)) {

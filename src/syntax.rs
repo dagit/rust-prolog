@@ -27,10 +27,18 @@ pub enum Term {
 /* Atomic proposition [p(t_1, ..., t_n)] */
 pub type Atom = (Constant, Vec<Term>);
 
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum FrameStatus {
+    Unframed,
+    Framed,
+}
+
+pub type FramableAtom = (Atom, FrameStatus);
+
 /* A conjunction of atomic propositions [p_1, ..., p_n]. The empty
 list represens [true]. */
-pub type Clause = Vec<Atom>;
-pub type ClauseSlice = [Atom];
+pub type Clause = Vec<FramableAtom>;
+pub type ClauseSlice = [FramableAtom];
 
 /* An assertion [(a,b_1,...,b_n)] is a Horn formula
 [b_1 & ... & b_n => a]. */
@@ -48,8 +56,8 @@ pub type DBSlice  = [Assertion];
 /* Toplevel commands */
 #[derive(PartialEq, Clone)]
 pub enum ToplevelCmd {
-    Assert(Assertion), /* Assertion [a :- b_1, ..., b_n.] or [a.] */
-    Goal(Clause),      /* Query [?- a] */
+    Assert((Atom, Vec<Atom>)), /* Assertion [a :- b_1, ..., b_n.] or [a.] */
+    Goal(Vec<Atom>),      /* Query [?- a] */
     Quit,              /* The [$quit] command. */
     Use(String)        /* The [$use "filename"] command. */
 }
@@ -90,7 +98,7 @@ pub fn subst_term(env: &Environment, t: &Term) -> Term {
 }
 
 /* [string_of_term t] converts term [t] to its string representation. */
-fn string_of_term(t: &Term) -> String {
+pub fn string_of_term(t: &Term) -> String {
     match *t {
         Term::Var((ref v, 0)) => v.clone(),
         Term::Var((ref v, n)) => v.clone() + &n.to_string(),
@@ -100,9 +108,24 @@ fn string_of_term(t: &Term) -> String {
             for l in ls.iter() {
                 strings.push(string_of_term(l));
             }
-            f.clone() + "(" + &strings.join(", ") + ")"
+            if !strings.is_empty() {
+                f.clone() + "(" + &strings.join(", ") + ")"
+            } else {
+                f.clone()
+            }
         }
     }
+}
+
+pub fn string_of_clauses(cs: &ClauseSlice) -> String {
+    let mut strings = Vec::with_capacity(cs.len());
+    for c in cs {
+        match c.to_owned() {
+            ((a,ts), FrameStatus::Unframed) => strings.push(string_of_term(&Term::App(a,ts))),
+            ((a,ts), FrameStatus::Framed)   => strings.push(format!("[{}]", string_of_term(&Term::App(a,ts)))),
+        }
+    }
+    strings.join(", ")
 }
 
 /* [string_of_env env] converts environment [env] to its string
@@ -130,7 +153,7 @@ pub fn string_of_env(env: &Environment) -> String {
 /* [exists fn ls] returns [true] if [fn] returns true on at least
 one element of [ls], and returns [false] otherwise.
 This was added to mimic the standard ML List.exists function. */
-fn exists<P, A>(predicate: P, ls: &[A]) -> bool
+pub fn exists<P, A>(predicate: P, ls: &[A]) -> bool
     where P: Fn(&A) -> bool {
     for x in ls.iter() {
         if predicate(x) {

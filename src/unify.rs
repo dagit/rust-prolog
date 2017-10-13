@@ -6,7 +6,7 @@ pub struct NoUnify;
 /* [unify_terms env t1 t2] unifies terms [t1] and [t2] in the current
 environment [env]. On success it returns the environment extended with
 the result of unification. On failure it raises [NoUnify]. */
-fn unify_terms(env:&Environment, t1: &Term, t2: &Term)
+pub fn unify_terms(env:&Environment, t1: &Term, t2: &Term)
                -> Result<Environment, NoUnify> {
     let new_t1 = subst_term(env, t1);
     let new_t2 = subst_term(env, t2);
