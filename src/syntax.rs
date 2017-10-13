@@ -175,6 +175,13 @@ pub fn occurs(x: &Variable, t: &Term) -> bool {
     }
 }
 
+// Look through the user's inference rule [a :- b1, ..., bn] and
+// compute all the contrapositives of the rule:
+// not(b1) :- not(a), b2, ..., bn
+// not(b2) :- not(a), b1, b3, ..., bn
+// ...
+// not(bn) :- not(a), b1, ..., b(n-1)
+// For convenience, we also include the original rule.
 pub fn generate_contrapositives(a: (Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
 {
     fn term_to_atom(t: &Term) -> Option<Atom> {
@@ -187,7 +194,9 @@ pub fn generate_contrapositives(a: (Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
             Term::App(ref c, ref ts) => Some((c.to_owned(),ts.to_owned())),
         }
     }
+
     let mut ret = vec![a.to_owned()];
+
     match make_complementary(&a.0) {
         None           => (),
         Some(not_head) => {
@@ -213,6 +222,11 @@ pub fn generate_contrapositives(a: (Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
     ret
 }
 
+// Compute the complementary term for an atom. We assume the arity of `not`
+// is exactly 1 and fail to produce a term if it is used at any other arity.
+//
+// Note: this also applies double negation elimination (eg., not(not(p)) = p).
+//
 pub fn make_complementary(t: &Atom) -> Option<Term>
 {
     match *t {
