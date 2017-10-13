@@ -4,9 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use syntax::{Database, DBSlice, Environment, Assertion, Term, Atom,
-            FramableClause, FramableClauseSlice,
-            FrameStatus, string_of_env, exists,
-            make_complementary, generate_contrapositives};
+            string_of_env, exists, make_complementary, generate_contrapositives};
 use unify::{unify_atoms, unify_terms};
 use rustyline::Editor;
 
@@ -16,6 +14,21 @@ is a tuple [(asrl, enn, c, n)] where [asrl] for other solutions of
 clause [c] in environment [env], using assertion list [asrl], where [n]
 is the search depth. */
 type Choice = (Vec<Assertion>, Environment, FramableClause, i32);
+
+/* As part of model elimination, it is useful to track assumptions
+ * separately from the rest of the search state. We accomplish this
+ * by "framing" atoms. Because this is state specific to the solver
+ * these types shouldn't be exposed outside of this module.
+ */
+#[derive(PartialEq, Copy, Clone, Debug)]
+enum FrameStatus {
+    Unframed,
+    Framed,
+}
+
+type FramableAtom        = (Atom, FrameStatus);
+type FramableClause      = Vec<FramableAtom>;
+type FramableClauseSlice = [FramableAtom];
 
 /* The global database of assertions cannot be represented with a
 global variable, like in ML */
@@ -246,3 +259,4 @@ pub fn solve_toplevel(db: &DBSlice, c: &[Atom], rl: &mut Editor<()>, interrupted
         }
     }
 }
+
