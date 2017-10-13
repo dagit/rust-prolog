@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use syntax::{/*Database, DBSlice,*/ Environment, Clause, ClauseSlice, /*Assertion,*/ Term, Atom,
-            Constant,
-            FrameStatus, string_of_env, /*string_of_term,*/ /*string_of_clauses,*/ exists,
+use syntax::{Database, DBSlice, Environment, Assertion, Term, Atom,
+            FramableClause, FramableClauseSlice,
+            FrameStatus, string_of_env, exists,
             make_complementary, generate_contrapositives};
 use unify::{unify_atoms, unify_terms};
 use rustyline::Editor;
@@ -15,13 +15,13 @@ search at which we may continue searching for another solution. It
 is a tuple [(asrl, enn, c, n)] where [asrl] for other solutions of
 clause [c] in environment [env], using assertion list [asrl], where [n]
 is the search depth. */
-type Choice = (Vec<(Atom, Vec<Atom>)>, Environment, Clause, i32);
+type Choice = (Vec<Assertion>, Environment, FramableClause, i32);
 
 /* The global database of assertions cannot be represented with a
 global variable, like in ML */
 
 /* Add a new assertion at the end of the current database. */
-pub fn assert(database: &mut Vec<(Atom, Vec<Atom>)>, a: &(Atom, Vec<Atom>)) {
+pub fn assert(database: &mut Database, a: &Assertion) {
     let mut contrapositives = generate_contrapositives(a);
     database.append(&mut contrapositives);
 }
@@ -120,9 +120,9 @@ When a solution is found, it is printed on the screen. The user
 then decides whether other solutions should be searched for.
  */
 fn solve(ch:          &[Choice],
-         asrl:        &[(Atom, Vec<Atom>)],
+         asrl:        &[Assertion],
          env:         &Environment,
-         c:           &ClauseSlice,
+         c:           &FramableClauseSlice,
          n:           i32,
          rl:          &mut Editor<()>,
          interrupted: &Arc<AtomicBool>,
@@ -171,7 +171,7 @@ fn solve(ch:          &[Choice],
                     //println!("inserting: {} and {}", string_of_clauses(&new_c), string_of_clauses(&d));
                     let d = new_c.into_iter()
                              .chain(d.into_iter())
-                             .collect::<Clause>();
+                             .collect::<FramableClause>();
                     solve(&ch, asrl, &new_env, &d, n+1, rl, interrupted, max_depth)
                 }
             }
@@ -179,7 +179,7 @@ fn solve(ch:          &[Choice],
     }
 }
 
-fn is_complementary(a: &(Constant, Vec<Term>), c: &ClauseSlice) -> bool
+fn is_complementary(a: &Atom, c: &FramableClauseSlice) -> bool
 {
     // this attemps to find a "complementary" match using unification
     // eg., not(p) is complementary to p (and vice-versa)
@@ -207,8 +207,8 @@ fn is_complementary(a: &(Constant, Vec<Term>), c: &ClauseSlice) -> bool
 /* [reduce_atom a asrl] reduces atom [a] to subgoals by using the
 first assertion in the assertion list [asrl] whose conclusion matches
 [a]. It returns [None] if the atom cannot be reduced. */
-fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &[(Atom, Vec<Atom>)])
-               -> Option<(Vec<(Atom, Vec<Atom>)>, Environment, Clause)>
+fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &[Assertion])
+               -> Option<(Database, Environment, FramableClause)>
 {
     if local_asrl.is_empty() {
         None
@@ -223,7 +223,7 @@ fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &[(Atom, Vec<Ato
                     new_env,
                     lst.iter()
                        .map( |l| (renumber_atom(n, l), FrameStatus::Unframed))
-                       .collect::<Clause>()
+                       .collect::<FramableClause>()
                 ))
         }
     }
@@ -232,11 +232,11 @@ fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &[(Atom, Vec<Ato
 /* [solve_toplevel c] searches for the proof of clause [c] using
 the "global" database. This function is called from the main
 program */
-pub fn solve_toplevel(db: &[(Atom, Vec<Atom>)], c: &[Atom], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32) {
+pub fn solve_toplevel(db: &DBSlice, c: &[Atom], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32) {
     let mut depth = 0;
     let c = c.iter()
              .map(|x| (x.to_owned(),FrameStatus::Unframed))
-             .collect::<Clause>();
+             .collect::<FramableClause>();
     loop {
         if depth >= max_depth { return println!("Search depth exhausted") }
         match solve(&[], db, &HashMap::new(), &c, 1, rl, interrupted, depth) {

@@ -21,7 +21,7 @@ use std::sync::Arc;
 use parser::parse_Toplevel;
 
 use solve::{solve_toplevel, assert};
-use syntax::{Atom/*,Database*/};
+use syntax::{Atom,Database};
 use syntax::ToplevelCmd;
 use syntax::ToplevelCmd::*;
 use lexer::Lexer;
@@ -38,7 +38,7 @@ enum Status<E> {
 Returns Some() when the computation succeeded and None
 when the command failed.
  */
-fn exec_cmd(db: &mut Vec<(Atom, Vec<Atom>)>, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
+fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
             -> Status<Error> {
     match *cmd {
         Assert(ref a) => { assert(db, a);  Status::Ok },

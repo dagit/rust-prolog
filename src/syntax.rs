@@ -27,18 +27,10 @@ pub enum Term {
 /* Atomic proposition [p(t_1, ..., t_n)] */
 pub type Atom = (Constant, Vec<Term>);
 
-#[derive(PartialEq, Copy, Clone, Debug)]
-pub enum FrameStatus {
-    Unframed,
-    Framed,
-}
-
-pub type FramableAtom = (Atom, FrameStatus);
-
 /* A conjunction of atomic propositions [p_1, ..., p_n]. The empty
 list represens [true]. */
-pub type Clause = Vec<FramableAtom>;
-pub type ClauseSlice = [FramableAtom];
+pub type Clause              = Vec<Atom>;
+pub type ClauseSlice         = [Atom];
 
 /* An assertion [(a,b_1,...,b_n)] is a Horn formula
 [b_1 & ... & b_n => a]. */
@@ -53,11 +45,21 @@ pub type Environment = HashMap<Variable, Term>;
 pub type Database = Vec<Assertion>;
 pub type DBSlice  = [Assertion];
 
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum FrameStatus {
+    Unframed,
+    Framed,
+}
+
+pub type FramableAtom        = (Atom, FrameStatus);
+pub type FramableClause      = Vec<FramableAtom>;
+pub type FramableClauseSlice = [FramableAtom];
+
 /* Toplevel commands */
 #[derive(PartialEq, Clone)]
 pub enum ToplevelCmd {
-    Assert((Atom, Vec<Atom>)), /* Assertion [a :- b_1, ..., b_n.] or [a.] */
-    Goal(Vec<Atom>),      /* Query [?- a] */
+    Assert(Assertion), /* Assertion [a :- b_1, ..., b_n.] or [a.] */
+    Goal(Clause),      /* Query [?- a] */
     Quit,              /* The [$quit] command. */
     Use(String)        /* The [$use "filename"] command. */
 }
@@ -119,7 +121,7 @@ pub fn string_of_term(t: &Term) -> String {
     }
 }
 
-pub fn string_of_clauses(cs: &ClauseSlice) -> String {
+pub fn string_of_clauses(cs: &FramableClauseSlice) -> String {
     let mut strings = Vec::with_capacity(cs.len());
     for c in cs {
         match c.to_owned() {
