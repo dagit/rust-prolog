@@ -41,7 +41,7 @@ when the command failed.
 fn exec_cmd(db: &mut Vec<(Atom, Vec<Atom>)>, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
             -> Status<Error> {
     match *cmd {
-        Assert(ref a) => { assert(db, a.clone());  Status::Ok },
+        Assert(ref a) => { assert(db, a);  Status::Ok },
         Goal(ref g)   => { solve_toplevel(db, g, rl, interrupted, max_depth); Status::Ok },
         Quit          => Status::Quit,
         Use(ref file) => match exec_file(db, file, rl, interrupted, max_depth) {

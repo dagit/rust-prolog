@@ -182,7 +182,7 @@ pub fn occurs(x: &Variable, t: &Term) -> bool {
 // ...
 // not(bn) :- not(a), b1, ..., b(n-1)
 // For convenience, we also include the original rule.
-pub fn generate_contrapositives(a: (Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
+pub fn generate_contrapositives(a: &(Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
 {
     fn term_to_atom(t: &Term) -> Option<Atom> {
         match *t {
@@ -204,15 +204,12 @@ pub fn generate_contrapositives(a: (Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
                 match make_complementary(t) {
                     None        => (),
                     Some(not_t) => {
-                        match (term_to_atom(&not_head), term_to_atom(&not_t)) {
-                            (Some(not_head), Some(not_t)) => {
+                        if let (Some(not_head), Some(not_t)) = (term_to_atom(&not_head), term_to_atom(&not_t)) {
                                 let mut new_tail: Vec<Atom> = a.1.to_owned();
                                 new_tail.remove(idx);
                                 new_tail.insert(0, not_head);
                                 let new_rule = (not_t, new_tail);
                                 ret.push(new_rule);
-                            },
-                            _ => (),
                         }
                     }
                 }

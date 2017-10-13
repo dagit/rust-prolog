@@ -21,7 +21,7 @@ type Choice = (Vec<(Atom, Vec<Atom>)>, Environment, Clause, i32);
 global variable, like in ML */
 
 /* Add a new assertion at the end of the current database. */
-pub fn assert(database: &mut Vec<(Atom, Vec<Atom>)>, a: (Atom, Vec<Atom>)) {
+pub fn assert(database: &mut Vec<(Atom, Vec<Atom>)>, a: &(Atom, Vec<Atom>)) {
     let mut contrapositives = generate_contrapositives(a);
     database.append(&mut contrapositives);
 }
