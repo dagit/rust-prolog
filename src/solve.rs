@@ -68,130 +68,147 @@ fn renumber_atom(n: i32, &(ref c, ref ts):&Atom) -> Atom {
      .collect::<Vec<Term>>() )
 }
 
-/* [display_solution ch env] displays the solution of a goal encoded
-by [env]. It then gives the user the option to search for other
-solutions, as described by the list of choice points [ch], or to abort
-the current proof search. */
-fn display_solution(ch: &[Choice], env: &Environment, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
-                    -> Result<(), Error>
-{
-    /* This is probably the least efficient way to figure out
-    when we're done */
-    let answer = string_of_env(env);
-    if answer == "Yes" {
-        Ok(println!("Yes"))
-    } else if ch.is_empty() {
-        Ok(println!("{}", answer))
-    } else {
-        println!("{} \n", answer);
-        let readline = rl.readline("more? (y/n) [y] ");
-        match readline {
-            Ok(s) => {
-                let input = s.trim();
-                if input == "y" || input == "yes" || input == "" {
-                    continue_search(ch, None, rl, interrupted, max_depth)
-                } else {
-                    Err(Error::NoSolution)
+struct Solver<'a> {
+    choices:     Vec<Choice>,
+    env:         Environment,
+    interrupted: &'a Arc<AtomicBool>,
+    rl:          &'a mut Editor<()>,
+    max_depth:   i32
+}
+
+impl<'a> Solver<'a> {
+
+    fn new(rl: &'a mut Editor<()>, interrupted: &'a Arc<AtomicBool>, max_depth: i32) -> Self {
+        Solver {
+            choices:     vec![],
+            env:         HashMap::new(),
+            interrupted: interrupted,
+            rl:          rl,
+            max_depth:   max_depth,
+        }
+    }
+
+    /* [display_solution] displays the solution of a goal encoded
+    by [env]. It then gives the user the option to search for other
+    solutions, as described by the list of choice points, or to abort
+    the current proof search. */
+    fn display_solution(&mut self) -> Result<(), Error>
+    {
+        /* This is probably the least efficient way to figure out
+        when we're done */
+        let answer = string_of_env(&self.env);
+        if answer == "Yes" {
+            Ok(println!("Yes"))
+        } else if self.choices.is_empty() {
+            Ok(println!("{}", answer))
+        } else {
+            println!("{} \n", answer);
+            let readline = self.rl.readline("more? (y/n) [y] ");
+            match readline {
+                Ok(s) => {
+                    let input = s.trim();
+                    if input == "y" || input == "yes" || input == "" {
+                        self.continue_search(None)
+                    } else {
+                        Err(Error::NoSolution)
+                    }
+                },
+                _  => { Err(Error::NoSolution) }
+            }
+        }
+    }
+
+    /* [continue_search a] looks for other answers. It uses the choices list of
+    choices. It continues the search at the first choice in the list. The optional atom [a] is
+    added to the goal state as an assumption.
+    */
+    fn continue_search(&mut self, a: Option<Atom>) -> Result<(), Error>
+    {
+        if self.choices.is_empty() {
+            Err(Error::NoSolution)
+        } else {
+            let (asrl, env, mut gs, n) = self.choices.pop().expect(concat!(file!(), ":", line!()));
+            self.env = env;
+            match a {
+                None    => self.solve(&asrl, &gs, n),
+                Some(a) => {
+                    gs.push((a,FrameStatus::Framed));
+                    self.solve(&asrl, &gs, n)
                 }
+            }
+        }
+    }
+
+
+    /* [solve asrl c n] looks for the proof of clause [c]. Other
+    arguments are:
+
+    [asrl] is the list of assertions that are used to reduce [c] to subgoals,
+
+    [n] is the search depth, which is increased at each level of search.
+
+    When a solution is found, it is printed on the screen. The user
+    then decides whether other solutions should be searched for.
+     */
+    fn solve(&mut self,
+             asrl: &[Assertion],
+             c:    &FramableClauseSlice,
+             n:    i32,)
+        -> Result<(), Error>
+    {
+        // TODO: make these println into debugging diagnostics
+        //println!("c = {}", string_of_clauses(c));
+
+        //First check all of our early exit conditions
+
+        // All atoms are solved, we found a solution
+        if c.is_empty() { return self.display_solution() }
+        // user requested we abort
+        if self.interrupted.load(Ordering::SeqCst) { return Err(Error::NoSolution) }
+        // abort according to iterated deepening search
+        if n >= self.max_depth { return Err(Error::DepthExhausted) }
+
+        // Now we're ready to do one step of solving the goal
+        let mut new_c = c.to_owned();
+        // this pop cannot fail because we made sure that c is non-empty
+        match new_c.pop().unwrap() {
+            /* if the left most atom is framed we remove it and call solve with essentially the
+             * same state */
+            (_a, FrameStatus::Framed)  => {
+                //println!("removing framed: {}", string_of_clauses(&[(_a,FrameStatus::Framed)]));
+                self.solve(asrl, &new_c, n)
             },
-            _  => { Err(Error::NoSolution) }
-        }
-    }
-}
-
-/* [continue_search ch] looks for other answers. It accepts a list of
-choices [ch]. It continues the search at the first choice in the list. */
-fn continue_search(ch: &[Choice], a: Option<Atom>, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32) -> Result<(), Error>
-{
-    if ch.is_empty() {
-        Err(Error::NoSolution)
-    } else {
-        let mut ch = ch.to_owned();
-        let (asrl, env, mut gs, n) = ch.pop().expect(concat!(file!(), ":", line!()));
-        match a {
-            None    => solve(&ch, &asrl, &env, &gs, n, rl, interrupted, max_depth),
-            Some(a) => {
-                gs.push((a,FrameStatus::Framed));
-                solve(&ch, &asrl, &env, &gs, n, rl, interrupted, max_depth)
-            }
-        }
-    }
-}
-
-/* [solve ch asrl env c n] looks for the proof of clause [c]. Other
-arguments are:
-
-[ch] is a list of choices at which we may look for other solutions,
-
-[asrl] is the list of assertions that are used to reduce [c] to subgoals,
-
-[env] is the current environment (values of variables),
-
-[n] is the search depth, which is increased at each level of search.
-
-When a solution is found, it is printed on the screen. The user
-then decides whether other solutions should be searched for.
- */
-fn solve(ch:          &[Choice],
-         asrl:        &[Assertion],
-         env:         &Environment,
-         c:           &FramableClauseSlice,
-         n:           i32,
-         rl:          &mut Editor<()>,
-         interrupted: &Arc<AtomicBool>,
-         max_depth:   i32)
-         -> Result<(), Error>
-{
-    // TODO: make these println into debugging diagnostics
-    //println!("c = {}", string_of_clauses(c));
-
-    //First check all of our early exit conditions
-
-    // All atoms are solved, we found a solution
-    if c.is_empty() { return display_solution(ch, env, rl, interrupted, max_depth) }
-    // user requested we abort
-    if interrupted.load(Ordering::SeqCst) { return Err(Error::NoSolution) }
-    // abort according to iterated deepening search
-    if n >= max_depth { return Err(Error::DepthExhausted) }
-
-    // Now we're ready to do one step of solving the goal
-    let mut new_c = c.to_owned();
-    // this pop cannot fail because we made sure that c is non-empty
-    match new_c.pop().unwrap() {
-        /* if the left most atom is framed we remove it and call solve with essentially the
-         * same state */
-        (_a, FrameStatus::Framed)  => {
-            //println!("removing framed: {}", string_of_clauses(&[(_a,FrameStatus::Framed)]));
-            solve(ch, asrl, env, &new_c, n, rl, interrupted, max_depth)
-        },
-        (a, FrameStatus::Unframed) => {
-            //println!("a = {}", string_of_clauses(&[(a.to_owned(),FrameStatus::Unframed)]));
-            if is_complementary(&a, &new_c) {
-                //println!("found complementary: {}", string_of_clauses(&[(a,FrameStatus::Unframed)]));
-                return solve(ch, asrl, env, &new_c, n, rl, interrupted, max_depth)
-            }
-            match reduce_atom(env, n, &a, asrl) {
-                None =>
-                /* This clause cannot be solved, look for other solutions */
-                    continue_search(ch, Some(a), rl, interrupted, max_depth),
-                Some((new_asrl, new_env, d)) => {
-                    /* The atom was reduced to subgoals [d]. Continue
-                    search with the subgoals added to the list of goals. */
-                    /* Add a new choice */
-                    let mut ch = ch.to_owned();
-                    ch.push((new_asrl,env.clone(),c.to_owned(),n));
-                    new_c.push((a,FrameStatus::Framed));
-                    //println!("inserting: {} and {}", string_of_clauses(&new_c), string_of_clauses(&d));
-                    let d = new_c.into_iter()
-                             .chain(d.into_iter())
-                             .collect::<FramableClause>();
-                    solve(&ch, asrl, &new_env, &d, n+1, rl, interrupted, max_depth)
+            (a, FrameStatus::Unframed) => {
+                //println!("a = {}", string_of_clauses(&[(a.to_owned(),FrameStatus::Unframed)]));
+                if is_complementary(&a, &new_c) {
+                    //println!("found complementary: {}", string_of_clauses(&[(a,FrameStatus::Unframed)]));
+                    return self.solve(asrl, &new_c, n)
+                }
+                match reduce_atom(&self.env, n, &a, asrl) {
+                    None =>
+                    /* This clause cannot be solved, look for other solutions */
+                        self.continue_search(Some(a)),
+                    Some((new_asrl, new_env, d)) => {
+                        /* The atom was reduced to subgoals [d]. Continue
+                        search with the subgoals added to the list of goals. */
+                        /* Add a new choice */
+                        //let mut ch = self.choices.to_owned();
+                        self.choices.push((new_asrl,self.env.clone(),c.to_owned(),n));
+                        new_c.push((a,FrameStatus::Framed));
+                        self.env = new_env;
+                        //println!("inserting: {} and {}", string_of_clauses(&new_c), string_of_clauses(&d));
+                        let d = new_c.into_iter()
+                                 .chain(d.into_iter())
+                                 .collect::<FramableClause>();
+                        self.solve(asrl, &d, n+1)
+                    }
                 }
             }
         }
     }
 }
 
+/* uses unification to search for framed atoms whose complement unifies with the given atom. */
 fn is_complementary(a: &Atom, c: &FramableClauseSlice) -> bool
 {
     // this attemps to find a "complementary" match using unification
@@ -252,7 +269,8 @@ pub fn solve_toplevel(db: &DBSlice, c: &[Atom], rl: &mut Editor<()>, interrupted
              .collect::<FramableClause>();
     loop {
         if depth >= max_depth { return println!("Search depth exhausted") }
-        match solve(&[], db, &HashMap::new(), &c, 1, rl, interrupted, depth) {
+        let mut s = Solver::new(rl, interrupted, depth);
+        match s.solve(db, &c, 1) {
             Err(Error::DepthExhausted) => depth += 1,
             Err(Error::NoSolution)     => return println!("No"),
             Ok(())                     => return ()
