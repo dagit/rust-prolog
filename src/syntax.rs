@@ -62,6 +62,8 @@ pub enum ToplevelCmd {
     Use(String)        /* The [$use "filename"] command. */
 }
 
+static NOT: &'static str = "not";
+
 /* [lookup env x] returns the value of variable instance [x] in
 environment [env]. It returns [Var x] if the variable does not
 occur in [env]. */
@@ -172,3 +174,64 @@ pub fn occurs(x: &Variable, t: &Term) -> bool {
         Term::App(_, ref ts) => exists(|t| occurs(x, t), ts)
     }
 }
+
+pub fn generate_contrapositives(a: (Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
+{
+    fn term_to_atom(t: &Term) -> Option<Atom> {
+        match *t {
+            Term::Var(_)             => None,
+            Term::Const(ref c)       => Some((c.to_owned(),vec![])),
+            Term::App(ref c, ref ts) => Some((c.to_owned(),ts.to_owned())),
+        }
+    }
+    let mut ret = vec![a.to_owned()];
+    match make_complementary(&a.0) {
+        None           => (),
+        Some(not_head) => {
+            for (idx, t) in a.1.iter().enumerate() {
+                match make_complementary(t) {
+                    None        => (),
+                    Some(not_t) => {
+                        match (term_to_atom(&not_head), term_to_atom(&not_t)) {
+                            (Some(not_head), Some(not_t)) => {
+                                let mut new_tail: Vec<Atom> = a.1.to_owned();
+                                new_tail.remove(idx);
+                                new_tail.insert(0, not_head);
+                                let new_rule = (not_t, new_tail);
+                                ret.push(new_rule);
+                            },
+                            _ => (),
+                        }
+                    }
+                }
+            }
+        }
+    }
+    ret
+}
+
+pub fn make_complementary(t: &Atom) -> Option<Term>
+{
+    match *t {
+        // this case bakes in double negation elimnation, so that
+        // not(p(X1,...,Xn)) =>
+        // not(not(p(X1,...,Xn))) =>
+        // p(X1,...,Xn)
+        (ref c, ref ts) if *c == NOT => {
+            // 'not()' should take exactly 1 argument. If not, then
+            // this code doesn't know how to construct the complement
+            match ts.len() {
+                1 => Some(ts.first().unwrap().to_owned()),
+                _ => None
+            }
+        },
+        // the `not` introduction case
+        (ref c, ref ts) => {
+            match ts.len() {
+                0 => Some(Term::App(NOT.to_string(), vec![Term::Const(c.to_owned())])),
+                _ => Some(Term::App(NOT.to_string(), vec![Term::App(c.to_owned(), ts.to_owned())])),
+            }
+        }
+    }
+}
+

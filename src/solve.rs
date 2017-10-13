@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use syntax::{/*Database, DBSlice,*/ Environment, Clause, ClauseSlice, /*Assertion,*/ Term, Atom,
             Constant,
-            FrameStatus, string_of_env, /*string_of_term, string_of_clauses,*/ exists};
+            FrameStatus, string_of_env, /*string_of_term,*/ /*string_of_clauses,*/ exists,
+            make_complementary, generate_contrapositives};
 use unify::{unify_atoms, unify_terms};
 use rustyline::Editor;
 
@@ -21,7 +22,8 @@ global variable, like in ML */
 
 /* Add a new assertion at the end of the current database. */
 pub fn assert(database: &mut Vec<(Atom, Vec<Atom>)>, a: (Atom, Vec<Atom>)) {
-    database.push(a);
+    let mut contrapositives = generate_contrapositives(a);
+    database.append(&mut contrapositives);
 }
 
 /* Exception [NoSolution] is raised when a goal cannot be proved. */
@@ -200,25 +202,6 @@ fn is_complementary(a: &(Constant, Vec<Term>), c: &ClauseSlice) -> bool
             }, c)
     }
     false
-}
-
-fn make_complementary(t: &Atom) -> Option<Term>
-{
-    match *t {
-        // this case bakes in double negation elimnation, so that
-        // not(p(X1,...,Xn)) =>
-        // not(not(p(X1,...,Xn))) =>
-        // p(X1,...,Xn)
-        (ref c, ref ts) if *c == "not" => {
-            // 'not()' should take exactly 1 argument. If not, then
-            // this code doesn't know how to construct the complement
-            match ts.len() {
-                1 => Some(ts.first().unwrap().to_owned()),
-                _ => None
-            }
-        },
-        _ => None
-    }
 }
 
 /* [reduce_atom a asrl] reduces atom [a] to subgoals by using the
