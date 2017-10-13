@@ -179,6 +179,9 @@ pub fn generate_contrapositives(a: (Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
 {
     fn term_to_atom(t: &Term) -> Option<Atom> {
         match *t {
+            // because we are processing inference rules, this case shouldn't come up. For example,
+            // this is a parse error:
+            // p :- X.
             Term::Var(_)             => None,
             Term::Const(ref c)       => Some((c.to_owned(),vec![])),
             Term::App(ref c, ref ts) => Some((c.to_owned(),ts.to_owned())),
