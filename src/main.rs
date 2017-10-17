@@ -44,7 +44,11 @@ fn exec_cmd(db: &mut Database, heap: &mut Heap, cmd: &ToplevelCmd, rl: &mut Edit
             -> Status<Error> {
     match *cmd {
         Assert(ref a) => { assert(db, heap, a);  Status::Ok },
-        Goal(ref g)   => { solve_toplevel(db, heap, g, rl, interrupted, max_depth); Status::Ok },
+        Goal(ref g)   => {
+            interrupted.store(false, Ordering::SeqCst);
+            solve_toplevel(db, heap, g, rl, interrupted, max_depth);
+            Status::Ok
+        },
         Quit          => Status::Quit,
         Use(ref file) => match exec_file(db, heap, file, rl, interrupted, max_depth) {
             Status::Err(e) => {
