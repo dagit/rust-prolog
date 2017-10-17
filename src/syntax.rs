@@ -4,6 +4,9 @@
 /* Abstract syntax */
 
 use std::collections::HashMap;
+use std::rc::Rc;
+
+use heap::Heap;
 
 /* Constants and atoms are strings starting with lower-case letters. */
 pub type Constant = String;
@@ -17,15 +20,15 @@ the same variable name in two different applications of the same assertion. */
 pub type Variable = (String, i32);
 
 /* The datatype of terms */
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub enum Term {
-    Var(Variable),            /* Variable [X1], [Y0], [Z2], ... */
-    Const(Constant),          /* Constant [a], [b], [c], ...    */
-    App(Constant, Vec<Term>)  /* Compound term [f(t_1,...,t_n)] */
+    Var(Variable),    // Variable `X1`, `Y0`, `Z2`, ...
+    Const(Constant),  // Constant `a`, `b`, `c`, ...
+    App(Constant, Vec<Rc<Term>>), // Compound term `f(t_1, ..., t_n)`
 }
 
 /* Atomic proposition [p(t_1, ..., t_n)] */
-pub type Atom = (Constant, Vec<Term>);
+pub type Atom = (Constant, Vec<Rc<Term>>);
 
 /* A conjunction of atomic propositions [p_1, ..., p_n]. The empty
 list represens [true]. */
@@ -39,7 +42,7 @@ pub type Assertion = (Atom, Clause);
 /* An environment is a list of pairs [(x, e)] where [x] is a variable
 instance and [e] is a term. An environment represents the current values
 of variables. */
-pub type Environment = HashMap<Variable, Term>;
+pub type Environment = HashMap<Variable, Rc<Term>>;
 
 /* A database is a list of assertions. It represents the current program. */
 pub type Database = Vec<Assertion>;
@@ -59,10 +62,12 @@ static NOT: &'static str = "not";
 /* [lookup env x] returns the value of variable instance [x] in
 environment [env]. It returns [Var x] if the variable does not
 occur in [env]. */
-fn lookup(env: &Environment, x: &Variable) -> Term {
+fn lookup(env: &Environment, heap: &mut Heap, x: &Variable) -> Rc<Term> {
     match env.get(x) {
         Some(y) => y.clone(),
-        None    => Term::Var(x.clone())
+        None    => {
+            heap.insert(Term::Var(x.clone()))
+        }
     }
 }
 
@@ -70,23 +75,23 @@ fn lookup(env: &Environment, x: &Variable) -> Term {
 as specified by the associative list [s]. It substitutes
 repeatedly until the terms stop changing, so this is not the
 usual kind of substitution. It is what we need during unification */
-pub fn subst_term(env: &Environment, t: &Term) -> Term {
+pub fn subst_term(env: &Environment, heap: &mut Heap, t: &Term) -> Rc<Term> {
     match *t {
         Term::Var(ref x) => {
-            let new_t = lookup(env, x);
-            if *t == new_t {
+            let new_t = lookup(env, heap, x);
+            if *t == *new_t {
                 new_t
             } else {
-                subst_term(env, &new_t)
+                subst_term(env, heap, &new_t)
             }
         },
-        Term::Const(_) => t.clone(),
+        Term::Const(_) => heap.insert(t.clone()),
         Term::App(ref c, ref ls) => {
             let mut new_ls = Vec::with_capacity(ls.len());
             for l in ls.iter() {
-                new_ls.push(subst_term(env, l));
+                new_ls.push(subst_term(env, heap, l));
             }
-            Term::App(c.clone(), new_ls)
+            heap.insert(Term::App(c.clone(), new_ls))
         }
     }
 }
@@ -114,7 +119,7 @@ pub fn string_of_term(t: &Term) -> String {
 /* [string_of_env env] converts environment [env] to its string
 representation. It only keeps instance variables at level 0, i.e.,
 those that appear in the toplevel goal. */
-pub fn string_of_env(env: &Environment) -> String {
+pub fn string_of_env(env: &Environment, heap: &mut Heap) -> String {
     let toplevels = env.iter()
         .filter( |&(&(_,n),_) | n==0)
     /* This creates copies and is unnecessary */
@@ -127,7 +132,7 @@ pub fn string_of_env(env: &Environment) -> String {
         let res = toplevels.iter()
             .map( |(&(ref x, _), e)|
                       x.clone() + " = " +
-                      &string_of_term(&subst_term(env,e)))
+                      &string_of_term(&subst_term(env,heap,e)))
             .collect::<Vec<String>>();
         res.join("\n")
     }
@@ -163,7 +168,7 @@ pub fn occurs(x: &Variable, t: &Term) -> bool {
 // ...
 // not(bn) :- not(a), b1, ..., b(n-1)
 // For convenience, we also include the original rule.
-pub fn generate_contrapositives(a: &(Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
+pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
 {
     fn term_to_atom(t: &Term) -> Option<Atom> {
         match *t {
@@ -178,11 +183,11 @@ pub fn generate_contrapositives(a: &(Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
 
     let mut ret = vec![a.to_owned()];
 
-    match make_complementary(&a.0) {
+    match make_complementary(heap, &a.0) {
         None           => (),
         Some(not_head) => {
             for (idx, t) in a.1.iter().enumerate() {
-                match make_complementary(t) {
+                match make_complementary(heap, t) {
                     None        => (),
                     Some(not_t) => {
                         if let (Some(not_head), Some(not_t)) = (term_to_atom(&not_head), term_to_atom(&not_t)) {
@@ -205,7 +210,7 @@ pub fn generate_contrapositives(a: &(Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
 //
 // Note: this also applies double negation elimination (eg., not(not(p)) = p).
 //
-pub fn make_complementary(t: &Atom) -> Option<Term>
+pub fn make_complementary(heap: &mut Heap, t: &Atom) -> Option<Rc<Term>>
 {
     match *t {
         // this case bakes in double negation elimnation, so that
@@ -223,8 +228,14 @@ pub fn make_complementary(t: &Atom) -> Option<Term>
         // the `not` introduction case
         (ref c, ref ts) => {
             match ts.len() {
-                0 => Some(Term::App(NOT.to_string(), vec![Term::Const(c.to_owned())])),
-                _ => Some(Term::App(NOT.to_string(), vec![Term::App(c.to_owned(), ts.to_owned())])),
+                0 => {
+                    let tail = heap.insert(Term::Const(c.to_owned()));
+                    Some(heap.insert(Term::App(NOT.to_string(), vec![tail])))
+                }
+                _ => {
+                    let tail = heap.insert(Term::App(c.to_owned(), ts.to_owned()));
+                    Some(heap.insert(Term::App(NOT.to_string(), vec![tail])))
+                }
             }
         }
     }

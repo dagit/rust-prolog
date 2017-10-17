@@ -10,6 +10,7 @@ pub mod unify;
 pub mod solve;
 pub mod token;
 pub mod lexer;
+pub mod heap;
 pub mod parser; // lalrpop generated parser
 
 use std::fs::File;
@@ -24,6 +25,7 @@ use solve::{solve_toplevel, assert};
 use syntax::{Atom,Database};
 use syntax::ToplevelCmd;
 use syntax::ToplevelCmd::*;
+use heap::Heap;
 use lexer::Lexer;
 
 use rustyline::Editor;
@@ -38,13 +40,13 @@ enum Status<E> {
 Returns Some() when the computation succeeded and None
 when the command failed.
  */
-fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
+fn exec_cmd(db: &mut Database, heap: &mut Heap, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
             -> Status<Error> {
     match *cmd {
-        Assert(ref a) => { assert(db, a);  Status::Ok },
-        Goal(ref g)   => { solve_toplevel(db, g, rl, interrupted, max_depth); Status::Ok },
+        Assert(ref a) => { assert(db, heap, a);  Status::Ok },
+        Goal(ref g)   => { solve_toplevel(db, heap, g, rl, interrupted, max_depth); Status::Ok },
         Quit          => Status::Quit,
-        Use(ref file) => match exec_file(db, file, rl, interrupted, max_depth) {
+        Use(ref file) => match exec_file(db, heap, file, rl, interrupted, max_depth) {
             Status::Err(e) => {
                 println!("Failed to execute file {}, {}", file, e);
                 /* We could return the error here, but that causes the interpreter
@@ -57,7 +59,7 @@ fn exec_cmd(db: &mut Database, cmd: &ToplevelCmd, rl: &mut Editor<()>, interrupt
 }
 
 /* [exec_file fn] executes the contents of file [fn]. */
-fn exec_file(db: &mut Vec<(Atom, Vec<Atom>)>, filename: &str, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
+fn exec_file(db: &mut Vec<(Atom, Vec<Atom>)>, heap: &mut Heap, filename: &str, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
              -> Status<Error> {
     use std::io::prelude::Read;
     match File::open(filename) {
@@ -67,8 +69,8 @@ fn exec_file(db: &mut Vec<(Atom, Vec<Atom>)>, filename: &str, rl: &mut Editor<()
             match f.read_to_string(&mut s) {
                 Err(e) => Status::Err(e),
                 Ok(_)  => {
-                    match parse_Toplevel(&s, Lexer::new(&s)) {
-                        Ok(cmds) => exec_cmds(db, &cmds, rl, interrupted, max_depth),
+                    match parse_Toplevel(heap, &s, Lexer::new(&s)) {
+                        Ok(cmds) => exec_cmds(db, heap, &cmds, rl, interrupted, max_depth),
                         Err(_)   => { println!("Parse error"); Status::Ok }
                     }
                 }
@@ -78,12 +80,12 @@ fn exec_file(db: &mut Vec<(Atom, Vec<Atom>)>, filename: &str, rl: &mut Editor<()
 }
 
 /* [exec_cmds cmds] executes the list of toplevel commands [cmds]. */
-fn exec_cmds(db: &mut Vec<(Atom, Vec<Atom>)>, cmds: &[ToplevelCmd], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
+fn exec_cmds(db: &mut Vec<(Atom, Vec<Atom>)>, heap: &mut Heap, cmds: &[ToplevelCmd], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
              -> Status<Error>
 {
     let mut ret : Status<Error> = Status::Ok;
     for cmd in cmds.iter() {
-        match exec_cmd(db, cmd, rl, interrupted, max_depth) {
+        match exec_cmd(db, heap, cmd, rl, interrupted, max_depth) {
             Status::Quit   => { ret = Status::Quit; break },
             Status::Err(e) => { ret = Status::Err(e); break },
             _              => continue
@@ -116,10 +118,11 @@ fn main() {
         
         let mut rl = Editor::<()>::new();
         let mut db: Vec<(Atom, Vec<Atom>)> = vec![];
+        let mut heap = Heap::new();
         /* Load up the standard prelude */
         let prelude_str = include_str!("prelude.pl");
-        match parse_Toplevel(prelude_str, Lexer::new(prelude_str)) {
-            Ok(cmds) => match exec_cmds(&mut db, &cmds, &mut rl, &interrupted, max_depth) {
+        match parse_Toplevel(&mut heap, prelude_str, Lexer::new(prelude_str)) {
+            Ok(cmds) => match exec_cmds(&mut db, &mut heap, &cmds, &mut rl, &interrupted, max_depth) {
                 Status::Quit   => panic!("$quit from prelude"),
                 Status::Err(_) => panic!("Exiting due to unexpected error in prelude"),
                 _              => ()
@@ -147,8 +150,8 @@ fn main() {
                     if s == "" { continue };
                     // First add it to the history
                     rl.add_history_entry(&s);
-                    match parse_Toplevel(&s, Lexer::new(&s)) {
-                        Ok(commands)  => match exec_cmds(&mut db, &commands, &mut rl, &interrupted, max_depth) {
+                    match parse_Toplevel(&mut heap, &s, Lexer::new(&s)) {
+                        Ok(commands)  => match exec_cmds(&mut db, &mut heap, &commands, &mut rl, &interrupted, max_depth) {
                             Status::Quit   => return,
                             Status::Err(e) => {
                                 println!("Exiting due to unexpected error: {}", e);

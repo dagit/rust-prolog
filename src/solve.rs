@@ -2,10 +2,12 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::rc::Rc;
 
 use syntax::{Database, DBSlice, Environment, Assertion, Term, Atom,
-            string_of_env, exists, make_complementary, generate_contrapositives};
+            string_of_env, make_complementary, generate_contrapositives};
 use unify::{unify_atoms, unify_terms};
+use heap::Heap;
 use rustyline::Editor;
 
 /* A value of type [choice] represents a choice point in the proof
@@ -34,8 +36,8 @@ type FramableClauseSlice = [FramableAtom];
 global variable, like in ML */
 
 /* Add a new assertion at the end of the current database. */
-pub fn assert(database: &mut Database, a: &Assertion) {
-    let mut contrapositives = generate_contrapositives(a);
+pub fn assert(database: &mut Database, heap: &mut Heap, a: &Assertion) {
+    let mut contrapositives = generate_contrapositives(heap, a);
     database.append(&mut contrapositives);
 }
 
@@ -47,30 +49,32 @@ enum Error {
 
 /* [renumber_term t n] renumbers all variable instances occurring in
 term [t] so that they have level [n]. */
-fn renumber_term(n: i32, t: &Term) -> Term {
+fn renumber_term(heap: &mut Heap, n: i32, t: &Term) -> Rc<Term> {
     match *t {
-        Term::Var((ref x, _))    => Term::Var((x.clone(),n)),
-        Term::Const(ref c)       => Term::Const(c.clone()),
+        Term::Var((ref x, _))    => heap.insert(Term::Var((x.clone(),n))),
+        Term::Const(ref c)       => heap.insert(Term::Const(c.clone())),
         Term::App(ref c, ref ts) => {
-            Term::App(c.clone(),
-                      ts.iter()
-                        .map( |t| renumber_term(n, t) )
-                        .collect::<Vec<Term>>())
+            let new_t = Term::App(c.clone(),
+                                  ts.iter()
+                                    .map( |t| renumber_term(heap, n, t) )
+                                    .collect::<Vec<Rc<Term>>>());
+            heap.insert(new_t)
         }
     }
 }
 
 /* [renumber_atom n a] renumbers all variable instances occurring in
 atom [a] so that they have level [n]. */
-fn renumber_atom(n: i32, &(ref c, ref ts):&Atom) -> Atom {
+fn renumber_atom(heap: &mut Heap, n: i32, &(ref c, ref ts):&Atom) -> Atom {
     (c.clone(), ts.iter()
-     .map( |t| renumber_term(n, t) )
-     .collect::<Vec<Term>>() )
+     .map( |t| renumber_term(heap, n, t) )
+     .collect::<Vec<Rc<Term>>>() )
 }
 
 struct Solver<'a> {
     choices:     Vec<Choice>,
     env:         Environment,
+    heap:        &'a mut Heap,
     interrupted: &'a Arc<AtomicBool>,
     rl:          &'a mut Editor<()>,
     max_depth:   i32
@@ -78,10 +82,11 @@ struct Solver<'a> {
 
 impl<'a> Solver<'a> {
 
-    fn new(rl: &'a mut Editor<()>, interrupted: &'a Arc<AtomicBool>, max_depth: i32) -> Self {
+    fn new(heap: &'a mut Heap, rl: &'a mut Editor<()>, interrupted: &'a Arc<AtomicBool>, max_depth: i32) -> Self {
         Solver {
             choices:     vec![],
             env:         HashMap::new(),
+            heap:        heap,
             interrupted: interrupted,
             rl:          rl,
             max_depth:   max_depth,
@@ -96,7 +101,7 @@ impl<'a> Solver<'a> {
     {
         /* This is probably the least efficient way to figure out
         when we're done */
-        let answer = string_of_env(&self.env);
+        let answer = string_of_env(&self.env, self.heap);
         if answer == "Yes" {
             Ok(println!("Yes"))
         } else if self.choices.is_empty() {
@@ -180,11 +185,11 @@ impl<'a> Solver<'a> {
             },
             (a, FrameStatus::Unframed) => {
                 //println!("a = {}", string_of_clauses(&[(a.to_owned(),FrameStatus::Unframed)]));
-                if is_complementary(&a, &new_c) {
+                if is_complementary(self.heap, &a, &new_c) {
                     //println!("found complementary: {}", string_of_clauses(&[(a,FrameStatus::Unframed)]));
                     return self.solve(asrl, &new_c, n)
                 }
-                match reduce_atom(&self.env, n, &a, asrl) {
+                match reduce_atom(&self.env, self.heap, n, &a, asrl) {
                     None =>
                     /* This clause cannot be solved, look for other solutions */
                         self.continue_search(Some(a)),
@@ -206,30 +211,39 @@ impl<'a> Solver<'a> {
             }
         }
     }
+
+    fn cleanup(&mut self) {
+        //self.heap.cleanup();
+    }
 }
 
 /* uses unification to search for framed atoms whose complement unifies with the given atom. */
-fn is_complementary(a: &Atom, c: &FramableClauseSlice) -> bool
+fn is_complementary(heap: &mut Heap, a: &Atom, c: &FramableClauseSlice) -> bool
 {
     // this attemps to find a "complementary" match using unification
     // eg., not(p) is complementary to p (and vice-versa)
-    if let Some(t) = make_complementary(a) {
-        //println!("negation, t = {}", string_of_term(&t));
-        return exists(|x| match *x {
-            ((ref c, ref ts), FrameStatus::Framed) => {
-                let t2 = if ts.is_empty() {
-                    Term::Const(c.to_owned())
-                } else {
-                    Term::App(c.to_owned(), ts.to_owned())
-                };
-                //println!("attempting unification of: {:?}, {:?}", t, t2);
-                match unify_terms(&HashMap::new(), &t, &t2) {
-                    Err(_) => false,
-                    Ok(_)  => true,
+    let try_complement = make_complementary(heap, a);
+    match try_complement {
+        Some(t) => {
+            //println!("negation, t = {}", string_of_term(&t));
+            for x in c {
+                match *x {
+                    ((ref c, ref ts), FrameStatus::Framed) => {
+                        let t2 = if ts.is_empty() {
+                            heap.insert(Term::Const(c.to_owned()))
+                        } else {
+                            heap.insert(Term::App(c.to_owned(), ts.to_owned()))
+                        };
+                        match unify_terms(&HashMap::new(), heap, &t, &t2) {
+                            Err(_) => (),
+                            Ok(_)  => return true,
+                        }
+                    }
+                    _ => ()
                 }
-            },
-            _ => false,
-            }, c)
+            }
+        }
+        None => ()
     }
     false
 }
@@ -237,7 +251,7 @@ fn is_complementary(a: &Atom, c: &FramableClauseSlice) -> bool
 /* [reduce_atom a asrl] reduces atom [a] to subgoals by using the
 first assertion in the assertion list [asrl] whose conclusion matches
 [a]. It returns [None] if the atom cannot be reduced. */
-fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &[Assertion])
+fn reduce_atom(env: &Environment, heap: &mut Heap, n: i32, a: &Atom, local_asrl: &[Assertion])
                -> Option<(Database, Environment, FramableClause)>
 {
     if local_asrl.is_empty() {
@@ -245,14 +259,15 @@ fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &[Assertion])
     } else {
         let mut asrl2    = local_asrl.to_owned();
         let (b, lst)     = asrl2.pop().expect(concat!(file!(), ":", line!()));
-        let try_env      = unify_atoms(env, a, &renumber_atom(n, &b));
+        let new_b        = renumber_atom(heap, n, &b);
+        let try_env      = unify_atoms(env, heap, a, &new_b);
         match try_env {
-            Err(_)       => reduce_atom(env, n, a, &asrl2),
+            Err(_)       => reduce_atom(env, heap, n, a, &asrl2),
             Ok(new_env)  => Some((
                     asrl2,
                     new_env,
                     lst.iter()
-                       .map( |l| (renumber_atom(n, l), FrameStatus::Unframed))
+                       .map( |l| (renumber_atom(heap, n, l), FrameStatus::Unframed))
                        .collect::<FramableClause>()
                 ))
         }
@@ -262,19 +277,20 @@ fn reduce_atom(env: &Environment, n: i32, a: &Atom, local_asrl: &[Assertion])
 /* [solve_toplevel c] searches for the proof of clause [c] using
 the "global" database. This function is called from the main
 program */
-pub fn solve_toplevel(db: &DBSlice, c: &[Atom], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32) {
+pub fn solve_toplevel(db: &DBSlice, heap: &mut Heap, c: &[Atom], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32) {
     let mut depth = 0;
     let c = c.iter()
              .map(|x| (x.to_owned(),FrameStatus::Unframed))
              .collect::<FramableClause>();
     loop {
         if depth >= max_depth { return println!("Search depth exhausted") }
-        let mut s = Solver::new(rl, interrupted, depth);
+        let mut s = Solver::new(heap, rl, interrupted, depth);
         match s.solve(db, &c, 1) {
             Err(Error::DepthExhausted) => depth += 1,
             Err(Error::NoSolution)     => return println!("No"),
             Ok(())                     => return ()
         }
+        s.cleanup();
     }
 }
 
