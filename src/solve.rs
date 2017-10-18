@@ -132,7 +132,7 @@ impl<'a> Solver<'a> {
     fn continue_search(&mut self) -> Result<(), Error>
     {
         if self.choices.is_empty() {
-            Err(Error::NoSolution)
+            Err(Error::DepthExhausted)
         } else {
             let (asrl, env, gs, n) = self.choices.pop().expect(concat!(file!(), ":", line!()));
             self.env = env;
@@ -166,8 +166,8 @@ impl<'a> Solver<'a> {
         if c.is_empty() { return self.display_solution() }
         // user requested we abort
         if self.interrupted.load(Ordering::SeqCst) { return Err(Error::NoSolution) }
-        // abort according to iterated deepening search
-        if n >= self.max_depth { return Err(Error::DepthExhausted) }
+        // abort this branch, and backtrack according to iterated deepening search
+        if n >= self.max_depth { return self.continue_search() }
 
         // Now we're ready to do one step of solving the goal
         let mut new_c = c.to_owned();
