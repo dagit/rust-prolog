@@ -1,10 +1,12 @@
 /* The prolog solver. */
+use std::iter::once;
 use std::collections::HashMap;
+use std::collections::vec_deque::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use gc::Gc;
 
-use syntax::{Database, DBSlice, Environment, Assertion, Term, Atom,
+use syntax::{Database, Environment, Assertion, Term, Atom,
             string_of_env, make_complementary, generate_contrapositives};
 use unify::{unify_atoms, unify_terms};
 use heap::Heap;
@@ -15,7 +17,7 @@ search at which we may continue searching for another solution. It
 is a tuple [(asrl, enn, c, n)] where [asrl] for other solutions of
 clause [c] in environment [env], using assertion list [asrl], where [n]
 is the search depth. */
-type Choice = (Vec<Assertion>, Environment, FramableClause, i32);
+type Choice = (Database, Environment, FramableClause, i32);
 
 /* As part of model elimination, it is useful to track assumptions
  * separately from the rest of the search state. We accomplish this
@@ -29,8 +31,7 @@ enum FrameStatus {
 }
 
 type FramableAtom        = (Atom, FrameStatus);
-type FramableClause      = Vec<FramableAtom>;
-type FramableClauseSlice = [FramableAtom];
+type FramableClause      = VecDeque<FramableAtom>;
 
 /* The global database of assertions cannot be represented with a
 global variable, like in ML */
@@ -113,7 +114,7 @@ impl<'a> Solver<'a> {
                 Ok(s) => {
                     let input = s.trim();
                     if input == "y" || input == "yes" || input == "" {
-                        self.continue_search(None)
+                        self.continue_search()
                     } else {
                         Err(Error::NoSolution)
                     }
@@ -127,20 +128,14 @@ impl<'a> Solver<'a> {
     choices. It continues the search at the first choice in the list. The optional atom [a] is
     added to the goal state as an assumption.
     */
-    fn continue_search(&mut self, a: Option<Atom>) -> Result<(), Error>
+    fn continue_search(&mut self) -> Result<(), Error>
     {
         if self.choices.is_empty() {
             Err(Error::NoSolution)
         } else {
-            let (asrl, env, mut gs, n) = self.choices.pop().expect(concat!(file!(), ":", line!()));
+            let (asrl, env, gs, n) = self.choices.pop().expect(concat!(file!(), ":", line!()));
             self.env = env;
-            match a {
-                None    => self.solve(&asrl, &gs, n),
-                Some(a) => {
-                    gs.push((a,FrameStatus::Framed));
-                    self.solve(&asrl, &gs, n)
-                }
-            }
+            self.solve(&asrl, &gs, n)
         }
     }
 
@@ -156,8 +151,8 @@ impl<'a> Solver<'a> {
     then decides whether other solutions should be searched for.
      */
     fn solve(&mut self,
-             asrl: &[Assertion],
-             c:    &FramableClauseSlice,
+             asrl: &Database,
+             c:    &FramableClause,
              n:    i32,)
         -> Result<(), Error>
     {
@@ -176,7 +171,7 @@ impl<'a> Solver<'a> {
         // Now we're ready to do one step of solving the goal
         let mut new_c = c.to_owned();
         // this pop cannot fail because we made sure that c is non-empty
-        match new_c.pop().unwrap() {
+        match new_c.pop_front().unwrap() {
             /* if the left most atom is framed we remove it and call solve with essentially the
              * same state */
             (_a, FrameStatus::Framed)  => {
@@ -192,18 +187,18 @@ impl<'a> Solver<'a> {
                 match reduce_atom(&self.env, self.heap, n, &a, asrl) {
                     None =>
                     /* This clause cannot be solved, look for other solutions */
-                        self.continue_search(Some(a)),
+                        self.continue_search(),
                     Some((new_asrl, new_env, d)) => {
                         /* The atom was reduced to subgoals [d]. Continue
                         search with the subgoals added to the list of goals. */
                         /* Add a new choice */
                         //let mut ch = self.choices.to_owned();
                         self.choices.push((new_asrl,self.env.clone(),c.to_owned(),n));
-                        new_c.push((a,FrameStatus::Framed));
                         self.env = new_env;
                         //println!("inserting: {} and {}", string_of_clauses(&new_c), string_of_clauses(&d));
-                        let d = new_c.into_iter()
-                                 .chain(d.into_iter())
+                        let d = d.into_iter()
+                                 .chain(once((a,FrameStatus::Framed)))
+                                 .chain(new_c.into_iter())
                                  .collect::<FramableClause>();
                         self.solve(asrl, &d, n+1)
                     }
@@ -218,7 +213,7 @@ impl<'a> Solver<'a> {
 }
 
 /* uses unification to search for framed atoms whose complement unifies with the given atom. */
-fn is_complementary(heap: &mut Heap, a: &Atom, c: &FramableClauseSlice) -> bool
+fn is_complementary(heap: &mut Heap, a: &Atom, c: &FramableClause) -> bool
 {
     // this attemps to find a "complementary" match using unification
     // eg., not(p) is complementary to p (and vice-versa)
@@ -251,14 +246,14 @@ fn is_complementary(heap: &mut Heap, a: &Atom, c: &FramableClauseSlice) -> bool
 /* [reduce_atom a asrl] reduces atom [a] to subgoals by using the
 first assertion in the assertion list [asrl] whose conclusion matches
 [a]. It returns [None] if the atom cannot be reduced. */
-fn reduce_atom(env: &Environment, heap: &mut Heap, n: i32, a: &Atom, local_asrl: &[Assertion])
+fn reduce_atom(env: &Environment, heap: &mut Heap, n: i32, a: &Atom, local_asrl: &Database)
                -> Option<(Database, Environment, FramableClause)>
 {
     if local_asrl.is_empty() {
         None
     } else {
         let mut asrl2    = local_asrl.to_owned();
-        let (b, lst)     = asrl2.pop().expect(concat!(file!(), ":", line!()));
+        let (b, lst)     = asrl2.pop_front().expect(concat!(file!(), ":", line!()));
         let new_b        = renumber_atom(heap, n, &b);
         let try_env      = unify_atoms(env, heap, a, &new_b);
         match try_env {
@@ -277,7 +272,7 @@ fn reduce_atom(env: &Environment, heap: &mut Heap, n: i32, a: &Atom, local_asrl:
 /* [solve_toplevel c] searches for the proof of clause [c] using
 the "global" database. This function is called from the main
 program */
-pub fn solve_toplevel(db: &DBSlice, heap: &mut Heap, c: &[Atom], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32) {
+pub fn solve_toplevel(db: &Database, heap: &mut Heap, c: &[Atom], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32) {
     let mut depth = 0;
     let c = c.iter()
              .map(|x| (x.to_owned(),FrameStatus::Unframed))

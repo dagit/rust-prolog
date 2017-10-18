@@ -19,13 +19,14 @@ pub mod parser; // lalrpop generated parser
 use std::fs::File;
 use std::io::Error;
 
+use std::collections::vec_deque::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use parser::parse_Toplevel;
 
 use solve::{solve_toplevel, assert};
-use syntax::{Atom,Database};
+use syntax::Database;
 use syntax::ToplevelCmd;
 use syntax::ToplevelCmd::*;
 use heap::Heap;
@@ -66,7 +67,7 @@ fn exec_cmd(db: &mut Database, heap: &mut Heap, cmd: &ToplevelCmd, rl: &mut Edit
 }
 
 /* [exec_file fn] executes the contents of file [fn]. */
-fn exec_file(db: &mut Vec<(Atom, Vec<Atom>)>, heap: &mut Heap, filename: &str, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
+fn exec_file(db: &mut Database, heap: &mut Heap, filename: &str, rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
              -> Status<Error> {
     use std::io::prelude::Read;
     match File::open(filename) {
@@ -87,7 +88,7 @@ fn exec_file(db: &mut Vec<(Atom, Vec<Atom>)>, heap: &mut Heap, filename: &str, r
 }
 
 /* [exec_cmds cmds] executes the list of toplevel commands [cmds]. */
-fn exec_cmds(db: &mut Vec<(Atom, Vec<Atom>)>, heap: &mut Heap, cmds: &[ToplevelCmd], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
+fn exec_cmds(db: &mut Database, heap: &mut Heap, cmds: &[ToplevelCmd], rl: &mut Editor<()>, interrupted: &Arc<AtomicBool>, max_depth: i32)
              -> Status<Error>
 {
     let mut ret : Status<Error> = Status::Ok;
@@ -124,7 +125,7 @@ fn main() {
         }).expect("Error setting Ctrl-C handler");
         
         let mut rl = Editor::<()>::new();
-        let mut db: Vec<(Atom, Vec<Atom>)> = vec![];
+        let mut db: Database = VecDeque::new();
         let mut heap = Heap::new();
         /* Load up the standard prelude */
         let prelude_str = include_str!("prelude.pl");

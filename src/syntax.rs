@@ -3,6 +3,8 @@
  */
 /* Abstract syntax */
 
+use std::iter::once;
+use std::collections::vec_deque::VecDeque;
 use std::collections::HashMap;
 use gc::Gc;
 
@@ -45,8 +47,7 @@ of variables. */
 pub type Environment = HashMap<Variable, Gc<Term>>;
 
 /* A database is a list of assertions. It represents the current program. */
-pub type Database = Vec<Assertion>;
-pub type DBSlice  = [Assertion];
+pub type Database = VecDeque<Assertion>;
 
 /* Toplevel commands */
 #[derive(PartialEq, Clone)]
@@ -168,7 +169,7 @@ pub fn occurs(x: &Variable, t: &Term) -> bool {
 // ...
 // not(bn) :- not(a), b1, ..., b(n-1)
 // For convenience, we also include the original rule.
-pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>)) -> Vec<(Atom, Vec<Atom>)>
+pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>)) -> Database
 {
     fn term_to_atom(t: &Term) -> Option<Atom> {
         match *t {
@@ -181,7 +182,7 @@ pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>)) -> Vec<(
         }
     }
 
-    let mut ret = vec![a.to_owned()];
+    let mut ret: Database = once(a.to_owned()).collect();
 
     match make_complementary(heap, &a.0) {
         None           => (),
@@ -195,7 +196,7 @@ pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>)) -> Vec<(
                                 new_tail.remove(idx);
                                 new_tail.insert(0, not_head);
                                 let new_rule = (not_t, new_tail);
-                                ret.push(new_rule);
+                                ret.push_back(new_rule);
                         }
                     }
                 }
