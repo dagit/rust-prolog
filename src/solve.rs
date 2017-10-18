@@ -51,14 +51,14 @@ enum Error {
 term [t] so that they have level [n]. */
 fn renumber_term(heap: &mut Heap, n: i32, t: &Term) -> Gc<Term> {
     match *t {
-        Term::Var((ref x, _))    => heap.insert(Term::Var((x.clone(),n))),
-        Term::Const(ref c)       => heap.insert(Term::Const(c.clone())),
+        Term::Var((ref x, _))    => heap.insert_term(Term::Var((x.clone(),n))),
+        Term::Const(ref c)       => heap.insert_term(Term::Const(c.clone())),
         Term::App(ref c, ref ts) => {
             let new_t = Term::App(c.clone(),
                                   ts.iter()
                                     .map( |t| renumber_term(heap, n, t) )
                                     .collect::<Vec<Gc<Term>>>());
-            heap.insert(new_t)
+            heap.insert_term(new_t)
         }
     }
 }
@@ -230,9 +230,9 @@ fn is_complementary(heap: &mut Heap, a: &Atom, c: &FramableClauseSlice) -> bool
                 match *x {
                     ((ref c, ref ts), FrameStatus::Framed) => {
                         let t2 = if ts.is_empty() {
-                            heap.insert(Term::Const(c.to_owned()))
+                            heap.insert_term(Term::Const(c.to_owned()))
                         } else {
-                            heap.insert(Term::App(c.to_owned(), ts.to_owned()))
+                            heap.insert_term(Term::App(c.to_owned(), ts.to_owned()))
                         };
                         match unify_terms(&HashMap::new(), heap, &t, &t2) {
                             Err(_) => (),

@@ -9,7 +9,7 @@ use gc::Gc;
 use heap::Heap;
 
 /* Constants and atoms are strings starting with lower-case letters. */
-pub type Constant = String;
+pub type Constant = Gc<String>;
 
 /* Variables are strings starting with upper-case letters, followed by
 a number which indicates an instance of the variable. Thus a
@@ -17,7 +17,7 @@ variable instance is a pair [(x,n)] where [x] is a variable and [n] is an
 integer. When the proof search depth is [n] all variables that we need to use
 are renamed from [(x,0)] to [(x,n)]. This is necessary so that we do not use
 the same variable name in two different applications of the same assertion. */
-pub type Variable = (String, i32);
+pub type Variable = (Gc<String>, i32);
 
 /* The datatype of terms */
 #[derive(Hash, Eq, PartialEq, Clone, Debug, Trace, Finalize)]
@@ -66,7 +66,7 @@ fn lookup(env: &Environment, heap: &mut Heap, x: &Variable) -> Gc<Term> {
     match env.get(x) {
         Some(y) => y.clone(),
         None    => {
-            heap.insert(Term::Var(x.clone()))
+            heap.insert_term(Term::Var(x.clone()))
         }
     }
 }
@@ -85,13 +85,13 @@ pub fn subst_term(env: &Environment, heap: &mut Heap, t: &Term) -> Gc<Term> {
                 subst_term(env, heap, &new_t)
             }
         },
-        Term::Const(_) => heap.insert(t.clone()),
+        Term::Const(_) => heap.insert_term(t.clone()),
         Term::App(ref c, ref ls) => {
             let mut new_ls = Vec::with_capacity(ls.len());
             for l in ls.iter() {
                 new_ls.push(subst_term(env, heap, l));
             }
-            heap.insert(Term::App(c.clone(), new_ls))
+            heap.insert_term(Term::App(c.clone(), new_ls))
         }
     }
 }
@@ -99,18 +99,18 @@ pub fn subst_term(env: &Environment, heap: &mut Heap, t: &Term) -> Gc<Term> {
 /* [string_of_term t] converts term [t] to its string representation. */
 pub fn string_of_term(t: &Term) -> String {
     match *t {
-        Term::Var((ref v, 0)) => v.clone(),
-        Term::Var((ref v, n)) => v.clone() + &n.to_string(),
-        Term::Const(ref c) => c.clone(),
+        Term::Var((ref v, 0))    => v.to_string(),
+        Term::Var((ref v, n))    => v.to_string() + &n.to_string(),
+        Term::Const(ref c)       => c.to_string(),
         Term::App(ref f, ref ls) => {
             let mut strings = Vec::with_capacity(ls.len());
             for l in ls.iter() {
                 strings.push(string_of_term(l));
             }
             if !strings.is_empty() {
-                f.clone() + "(" + &strings.join(", ") + ")"
+                f.to_string() + "(" + &strings.join(", ") + ")"
             } else {
-                f.clone()
+                f.to_string()
             }
         }
     }
@@ -131,7 +131,7 @@ pub fn string_of_env(env: &Environment, heap: &mut Heap) -> String {
     } else {
         let res = toplevels.iter()
             .map( |(&(ref x, _), e)|
-                      x.clone() + " = " +
+                      x.to_string() + " = " +
                       &string_of_term(&subst_term(env,heap,e)))
             .collect::<Vec<String>>();
         res.join("\n")
@@ -217,7 +217,7 @@ pub fn make_complementary(heap: &mut Heap, t: &Atom) -> Option<Gc<Term>>
         // not(p(X1,...,Xn)) =>
         // not(not(p(X1,...,Xn))) =>
         // p(X1,...,Xn)
-        (ref c, ref ts) if *c == NOT => {
+        (ref c, ref ts) if **c == NOT => {
             // 'not()' should take exactly 1 argument. If not, then
             // this code doesn't know how to construct the complement
             match ts.len() {
@@ -229,12 +229,14 @@ pub fn make_complementary(heap: &mut Heap, t: &Atom) -> Option<Gc<Term>>
         (ref c, ref ts) => {
             match ts.len() {
                 0 => {
-                    let tail = heap.insert(Term::Const(c.to_owned()));
-                    Some(heap.insert(Term::App(NOT.to_string(), vec![tail])))
+                    let tail = heap.insert_term(Term::Const(c.to_owned()));
+                    let not  = heap.insert_string(NOT.to_string());
+                    Some(heap.insert_term(Term::App(not, vec![tail])))
                 }
                 _ => {
-                    let tail = heap.insert(Term::App(c.to_owned(), ts.to_owned()));
-                    Some(heap.insert(Term::App(NOT.to_string(), vec![tail])))
+                    let tail = heap.insert_term(Term::App(c.to_owned(), ts.to_owned()));
+                    let not  = heap.insert_string(NOT.to_string());
+                    Some(heap.insert_term(Term::App(not, vec![tail])))
                 }
             }
         }

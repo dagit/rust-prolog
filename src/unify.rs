@@ -24,7 +24,7 @@ pub fn unify_terms(env:&Environment, heap: &mut Heap, t1: &Term, t2: &Term)
                 let mut new_env = env.clone();
                 // TODO: split up these branches so the Rc can be
                 // reused directly.
-                new_env.insert(y.clone(),heap.insert(t.clone()));
+                new_env.insert(y.clone(),heap.insert_term(t.clone()));
                 Ok(new_env)
             },
             (&Term::App (ref c1, ref ts1), &Term::App (ref c2, ref ts2)) =>
