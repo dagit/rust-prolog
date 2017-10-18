@@ -18,15 +18,15 @@ type(char,char).
 # tuples
 type(fst, arr(tuple(A,B),A)).
 type(comma,arr(A,arr(B,tuple(A,B)))).
-# No idea why this rule for tuple is neccesary
-type(app(comma,X),arr(B,tuple(A,B))) :-
-    type(X,A).
 type(snd, arr(tuple(A,B),B)).
 type(curry, arr(arr(tuple(A,B), C), arr(A, arr(B, C)))).
 type(uncurry, arr(arr(A, arr(B, C)), arr(tuple(A,B), C))).
 
 type(compose, arr(arr(B, C), arr(arr(A, B), arr(A, C)))).
 
+# No idea why this rule for tuple is neccesary
+type(app(comma,X),arr(B,tuple(A,B))) :-
+    type(X,A).
 # function application
 type(app(F,X), B) :-
     type(F, arr(A,B)),

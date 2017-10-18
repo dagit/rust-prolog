@@ -127,8 +127,7 @@ impl<'a> Solver<'a> {
     }
 
     /* [continue_search a] looks for other answers. It uses the choices list of
-    choices. It continues the search at the first choice in the list. The optional atom [a] is
-    added to the goal state as an assumption.
+    choices. It continues the search at the first choice in the list.
     */
     fn continue_search(&mut self) -> Result<(), Error>
     {
