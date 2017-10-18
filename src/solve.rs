@@ -73,6 +73,7 @@ fn renumber_atom(heap: &mut Heap, n: i32, &(ref c, ref ts):&Atom) -> Atom {
 }
 
 struct Solver<'a> {
+    database:    &'a Database,
     choices:     Vec<Choice>,
     env:         Environment,
     heap:        &'a mut Heap,
@@ -83,8 +84,9 @@ struct Solver<'a> {
 
 impl<'a> Solver<'a> {
 
-    fn new(heap: &'a mut Heap, rl: &'a mut Editor<()>, interrupted: &'a Arc<AtomicBool>, max_depth: i32) -> Self {
+    fn new(db: &'a Database, heap: &'a mut Heap, rl: &'a mut Editor<()>, interrupted: &'a Arc<AtomicBool>, max_depth: i32) -> Self {
         Solver {
+            database:    db,
             choices:     vec![],
             env:         HashMap::new(),
             heap:        heap,
@@ -200,7 +202,7 @@ impl<'a> Solver<'a> {
                                  .chain(once((a,FrameStatus::Framed)))
                                  .chain(new_c.into_iter())
                                  .collect::<FramableClause>();
-                        self.solve(asrl, &d, n+1)
+                        self.solve(self.database, &d, n+1)
                     }
                 }
             }
@@ -279,7 +281,7 @@ pub fn solve_toplevel(db: &Database, heap: &mut Heap, c: &[Atom], rl: &mut Edito
              .collect::<FramableClause>();
     loop {
         if depth >= max_depth { return println!("Search depth exhausted") }
-        let mut s = Solver::new(heap, rl, interrupted, depth);
+        let mut s = Solver::new(db, heap, rl, interrupted, depth);
         match s.solve(db, &c, 1) {
             Err(Error::DepthExhausted) => depth += 1,
             Err(Error::NoSolution)     => return println!("No"),
