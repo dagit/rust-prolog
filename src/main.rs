@@ -4,6 +4,9 @@ extern crate lalrpop_util;  // parser generator
 extern crate rustyline;     // line editing and ctrl+c handling
 extern crate ctrlc;         // we still need ctrl+c handling when not in rustyline
 extern crate regex;
+#[macro_use]
+extern crate gc_derive;
+extern crate gc;
 
 pub mod syntax;
 pub mod unify;

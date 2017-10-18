@@ -1,36 +1,26 @@
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::rc::Weak;
+use std::collections::HashSet;
+use gc::Gc;
 
 use syntax::Term;
 
-type InnerHeap = HashMap<Term,Weak<Term>>;
+type InnerHeap = HashSet<Gc<Term>>;
 pub struct Heap {
     heap: InnerHeap,
 }
 
 impl Heap {
     pub fn new() -> Self {
-        Heap { heap: HashMap::new() }
+        Heap { heap: HashSet::new() }
     }
 
-    pub fn insert(&mut self, t: Term) -> Rc<Term>
+    pub fn insert(&mut self, t: Term) -> Gc<Term>
     {
-        match self.heap.get(&t) {
-            Some(ref w) => {
-                match w.upgrade() {
-                    None     => (),
-                    Some(rc) => return rc
-                }
-            }
-            None        => ()
+        let gc_term = Gc::new(t);
+        match self.heap.get(&gc_term) {
+            Some(gc) => return gc.clone(),
+            None     => ()
         }
-        let r = Rc::new(t.clone());
-        self.heap.insert(t, Rc::downgrade(&r));
-        r
-    }
-
-    pub fn cleanup(&mut self) {
-        self.heap.retain(|_, ref y| y.upgrade().is_some());
+        self.heap.insert(gc_term.clone());
+        gc_term
     }
 }

@@ -4,7 +4,7 @@
 /* Abstract syntax */
 
 use std::collections::HashMap;
-use std::rc::Rc;
+use gc::Gc;
 
 use heap::Heap;
 
@@ -20,15 +20,15 @@ the same variable name in two different applications of the same assertion. */
 pub type Variable = (String, i32);
 
 /* The datatype of terms */
-#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug, Trace, Finalize)]
 pub enum Term {
     Var(Variable),    // Variable `X1`, `Y0`, `Z2`, ...
     Const(Constant),  // Constant `a`, `b`, `c`, ...
-    App(Constant, Vec<Rc<Term>>), // Compound term `f(t_1, ..., t_n)`
+    App(Constant, Vec<Gc<Term>>), // Compound term `f(t_1, ..., t_n)`
 }
 
 /* Atomic proposition [p(t_1, ..., t_n)] */
-pub type Atom = (Constant, Vec<Rc<Term>>);
+pub type Atom = (Constant, Vec<Gc<Term>>);
 
 /* A conjunction of atomic propositions [p_1, ..., p_n]. The empty
 list represens [true]. */
@@ -42,7 +42,7 @@ pub type Assertion = (Atom, Clause);
 /* An environment is a list of pairs [(x, e)] where [x] is a variable
 instance and [e] is a term. An environment represents the current values
 of variables. */
-pub type Environment = HashMap<Variable, Rc<Term>>;
+pub type Environment = HashMap<Variable, Gc<Term>>;
 
 /* A database is a list of assertions. It represents the current program. */
 pub type Database = Vec<Assertion>;
@@ -62,7 +62,7 @@ static NOT: &'static str = "not";
 /* [lookup env x] returns the value of variable instance [x] in
 environment [env]. It returns [Var x] if the variable does not
 occur in [env]. */
-fn lookup(env: &Environment, heap: &mut Heap, x: &Variable) -> Rc<Term> {
+fn lookup(env: &Environment, heap: &mut Heap, x: &Variable) -> Gc<Term> {
     match env.get(x) {
         Some(y) => y.clone(),
         None    => {
@@ -75,7 +75,7 @@ fn lookup(env: &Environment, heap: &mut Heap, x: &Variable) -> Rc<Term> {
 as specified by the associative list [s]. It substitutes
 repeatedly until the terms stop changing, so this is not the
 usual kind of substitution. It is what we need during unification */
-pub fn subst_term(env: &Environment, heap: &mut Heap, t: &Term) -> Rc<Term> {
+pub fn subst_term(env: &Environment, heap: &mut Heap, t: &Term) -> Gc<Term> {
     match *t {
         Term::Var(ref x) => {
             let new_t = lookup(env, heap, x);
@@ -210,7 +210,7 @@ pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>)) -> Vec<(
 //
 // Note: this also applies double negation elimination (eg., not(not(p)) = p).
 //
-pub fn make_complementary(heap: &mut Heap, t: &Atom) -> Option<Rc<Term>>
+pub fn make_complementary(heap: &mut Heap, t: &Atom) -> Option<Gc<Term>>
 {
     match *t {
         // this case bakes in double negation elimnation, so that

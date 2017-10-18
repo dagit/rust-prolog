@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::rc::Rc;
+use gc::Gc;
 
 use syntax::{Database, DBSlice, Environment, Assertion, Term, Atom,
             string_of_env, make_complementary, generate_contrapositives};
@@ -49,7 +49,7 @@ enum Error {
 
 /* [renumber_term t n] renumbers all variable instances occurring in
 term [t] so that they have level [n]. */
-fn renumber_term(heap: &mut Heap, n: i32, t: &Term) -> Rc<Term> {
+fn renumber_term(heap: &mut Heap, n: i32, t: &Term) -> Gc<Term> {
     match *t {
         Term::Var((ref x, _))    => heap.insert(Term::Var((x.clone(),n))),
         Term::Const(ref c)       => heap.insert(Term::Const(c.clone())),
@@ -57,7 +57,7 @@ fn renumber_term(heap: &mut Heap, n: i32, t: &Term) -> Rc<Term> {
             let new_t = Term::App(c.clone(),
                                   ts.iter()
                                     .map( |t| renumber_term(heap, n, t) )
-                                    .collect::<Vec<Rc<Term>>>());
+                                    .collect::<Vec<Gc<Term>>>());
             heap.insert(new_t)
         }
     }
@@ -68,7 +68,7 @@ atom [a] so that they have level [n]. */
 fn renumber_atom(heap: &mut Heap, n: i32, &(ref c, ref ts):&Atom) -> Atom {
     (c.clone(), ts.iter()
      .map( |t| renumber_term(heap, n, t) )
-     .collect::<Vec<Rc<Term>>>() )
+     .collect::<Vec<Gc<Term>>>() )
 }
 
 struct Solver<'a> {

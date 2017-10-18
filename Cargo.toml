@@ -13,6 +13,8 @@ rustyline   = "*"
 regex       = "*"
 lazy_static = "*"
 ctrlc       = "*"
+gc          = "*"
+gc_derive   = "*"
 
 [dependencies.lalrpop-util]
 version = "*"

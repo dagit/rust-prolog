@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use gc::Gc;
 
 use syntax::{Environment, Term, Atom, subst_term, occurs};
 use heap::Heap;
@@ -43,7 +43,7 @@ pub fn unify_terms(env:&Environment, heap: &mut Heap, t1: &Term, t2: &Term)
 environment [env] and returns a new environment [env'] on success. It
 returns [NoUnify] on failure or if the lists are not equal length.
  */
-fn unify_lists(env: &Environment, heap: &mut Heap, lst1: &[Rc<Term>], lst2: &[Rc<Term>])
+fn unify_lists(env: &Environment, heap: &mut Heap, lst1: &[Gc<Term>], lst2: &[Gc<Term>])
                -> Result<Environment, NoUnify>
 {
     if lst1.len() != lst2.len() {
