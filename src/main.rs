@@ -110,7 +110,7 @@ fn main() {
      * because we allocated everything on the stack and the default
      * stack size is pretty small.
      */
-    let max_depth = 1_000i32;
+    let max_depth = 200i32;
     let interpreter = thread::Builder::new().stack_size(128 * 1024 * 1024).spawn(move || {
 
         // This is for handling Ctrl-C. We note the interruption
