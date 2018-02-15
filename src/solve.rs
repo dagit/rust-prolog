@@ -97,11 +97,14 @@ impl<'a> Solver<'a> {
     }
 
     /* [display_solution] displays the solution of a goal encoded
-    by [env]. It then gives the user the option to search for other
-    solutions, as described by the list of choice points, or to abort
-    the current proof search. */
-    fn display_solution(&mut self) -> Result<(), Error>
+    by [env] and the current search depth. It then gives the user the option to search for other
+    solutions, as described by the list of choice points, or to abort the current proof search. */
+    fn display_solution(&mut self, n: i32) -> Result<(), Error>
     {
+        /* Due to the way iterative deepening works, we only need to print an answer the first time
+         * we find it. That is, at the first depth we see it.
+         */
+        if n < self.max_depth { return self.continue_search() }
         /* This is probably the least efficient way to figure out
         when we're done */
         let answer = string_of_env(&self.env, self.heap);
@@ -163,11 +166,11 @@ impl<'a> Solver<'a> {
         //First check all of our early exit conditions
 
         // All atoms are solved, we found a solution
-        if c.is_empty() { return self.display_solution() }
+        if c.is_empty() { return self.display_solution(n) }
         // user requested we abort
         if self.interrupted.load(Ordering::SeqCst) { return Err(Error::NoSolution) }
         // abort this branch, and backtrack according to iterated deepening search
-        if n >= self.max_depth { return self.continue_search() }
+        if n > self.max_depth { return self.continue_search() }
 
         // Now we're ready to do one step of solving the goal
         let mut new_c = c.to_owned();
