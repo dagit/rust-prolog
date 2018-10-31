@@ -1,5 +1,5 @@
 [package]
-name = "miniprolog"
+name = "rust-prolog"
 version = "0.1.0"
 authors = ["dagit <dagitj@gmail.com>"]
 build = "build.rs" # LALRPOP preprocessing
