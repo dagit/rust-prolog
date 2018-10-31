@@ -157,7 +157,7 @@ fn main() {
                 Ok(s) => {
                     if s == "" { continue };
                     // First add it to the history
-                    rl.add_history_entry(&s);
+                    rl.add_history_entry(s.clone());
                     match parse_Toplevel(&mut heap, &s, Lexer::new(&s)) {
                         Ok(commands)  => match exec_cmds(&mut db, &mut heap, &commands, &mut rl, &interrupted, max_depth) {
                             Status::Quit   => return,
