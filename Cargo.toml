@@ -17,7 +17,7 @@ gc          = "*"
 gc_derive   = "*"
 
 [dependencies.lalrpop-util]
-version = "0.14"
+version = "*"
 
 [build-dependencies.lalrpop]
-version = "0.14"
+version = "*"
