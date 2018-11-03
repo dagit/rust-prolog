@@ -93,6 +93,7 @@ impl<'a> Solver<'a> {
             interrupted: interrupted,
             rl:          rl,
             max_depth:   max_depth,
+            cur_depth:   0,
         }
     }
 
@@ -134,7 +135,9 @@ impl<'a> Solver<'a> {
     */
     fn continue_search(&mut self) -> Result<(), Error>
     {
-        if self.choices.is_empty() {
+        if self.choices.is_empty() && self.cur_depth < self.max_depth {
+            Err(Error::NoSolution)
+        } else if self.choices.is_empty() {
             Err(Error::DepthExhausted)
         } else {
             let (asrl, env, gs, n) = self.choices.pop().expect(concat!(file!(), ":", line!()));
@@ -163,6 +166,7 @@ impl<'a> Solver<'a> {
         // TODO: make these println into debugging diagnostics
         //println!("c = {}", string_of_clauses(c));
 
+        self.cur_depth = std::cmp::max(self.cur_depth, n);
         //First check all of our early exit conditions
 
         // All atoms are solved, we found a solution
