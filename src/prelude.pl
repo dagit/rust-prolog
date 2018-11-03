@@ -69,12 +69,14 @@ sub(succ(I), succ(J), K) :- sub(I,J,K).
 
 ## Natural number Comparisons
 lt(zero,succ(X)).
+lt(succ(X), succ(Y)) :- lt(X,Y).
 lt(X,succ(Y)) :- lt(X,Y).
 
 lte(X,X).
 lte(X,Y) :- lt(X,Y).
 
 gt(succ(X),zero).
+gt(succ(X),succ(Y)) :- gt(X,Y).
 gt(succ(X),Y) :- gt(X,Y).
 
 gte(X,X).
