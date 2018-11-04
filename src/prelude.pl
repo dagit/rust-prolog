@@ -13,15 +13,15 @@ list(cons(X,Y)) :- list(Y).
 
 ## List append
 append(nil,X,X).
-append(cons(H,T), L2, cons(H,L3)) :- append(T,L2,L3).
+append([H|T], L2, [H|L3]) :- append(T,L2,L3).
 
 ## List delete
-delete(X,cons(X,T),T).
-delete(X,cons(H,T),cons(H,T2)) :- delete(X,T,T2).
+delete(X,[X|T],T).
+delete(X,[H|T],[H|T2]) :- delete(X,T,T2).
 
 ## Head & Tail
-head(H,cons(H,T)).
-tail(T,cons(H,T)).
+head(H,[H|T]).
+tail(T,[H|T]).
 
 ## First and last
 first(H,cons(H,T)).
@@ -29,20 +29,20 @@ last(Y,cons(H,T)) :- last(Y,T).
 
 ## Prefix and suffix
 prefix(nil, X).
-prefix(cons(H,X),cons(H,Y)) :- prefix(X,Y).
+prefix([H|X],[H|Y]) :- prefix(X,Y).
 suffix(X,X).
-suffix(cons(H,X),Y) :- suffix(X,Y).
+suffix([H|X],Y) :- suffix(X,Y).
 
 ## Membership
-member(X, cons(X,T)).
-member(X, cons(H,L)) :- member(X, L).
+member(X, [X|T]).
+member(X, [H|L]) :- member(X, L).
 
 ## Sublist
 sublist(S,L) :- append(X,S,P), append(P,Y,L).
 
 ## Permutations
 perm(nil,nil).
-perm(L,cons(H,P)) :- delete(H,L,R), perm(R,P).
+perm(L,[H|P]) :- delete(H,L,R), perm(R,P).
 
 
 # Natural Numbers

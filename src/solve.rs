@@ -79,7 +79,14 @@ struct Solver<'a> {
     heap:        &'a mut Heap,
     interrupted: &'a Arc<AtomicBool>,
     rl:          &'a mut Editor<()>,
-    max_depth:   i32
+    // Maximum depth for the current iteration.
+    max_depth:   i32,
+    // The maximum seen depth in the current iteration.
+    // Tracking this allows us to exit iterative deepening when
+    // we've visited the entire search space but haven't yet hit
+    // the search depth limit.
+    cur_depth:   i32,
+    cleanup:     bool
 }
 
 impl<'a> Solver<'a> {

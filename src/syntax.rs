@@ -102,19 +102,94 @@ pub fn string_of_term(t: &Term) -> String {
     match *t {
         Term::Var((ref v, 0))    => v.to_string(),
         Term::Var((ref v, n))    => v.to_string() + &n.to_string(),
-        Term::Const(ref c)       => c.to_string(),
-        Term::App(ref f, ref ls) => {
-            let mut strings = Vec::with_capacity(ls.len());
-            for l in ls.iter() {
-                strings.push(string_of_term(l));
-            }
-            if !strings.is_empty() {
-                f.to_string() + "(" + &strings.join(", ") + ")"
-            } else {
-                f.to_string()
-            }
-        }
+        Term::Const(ref c)       => string_of_const(c),
+        Term::App(..) => string_of_app(t),
     }
+}
+
+fn string_of_const(t: &str) -> String {
+    match t {
+        "zero" => "0",
+        "nil"  => "[]",
+        _      => t,
+    }.to_string()
+}
+
+fn string_of_app(t: &Term) -> String {
+    match *t {
+        Term::App(ref f, ref args) => match (**f).as_str() {
+            "cons" => {
+                let list_str : Vec<String> = list_map(t, Box::new(string_of_term));
+                "[".to_string() + &list_str.join(", ") + "]"
+            },
+            "succ" => {
+                nat_to_word(t).to_string()
+            },
+            _ => {
+                let list_str = string_of_list(args);
+                f.to_string() + "(" + &list_str + ")"
+            }
+        },
+        _ => panic!()
+    }
+}
+
+fn list_map(list: &Term, f: Box<Fn(&Term) -> String>) -> Vec<String>
+{
+    match *list {
+        Term::App(ref t, ref elts) => match (**t).as_str () {
+            "cons" => {
+                if elts.len() == 2 {
+                    let head = &elts[0];
+                    let tail = &elts[1];
+                    let mut r = vec![f(head)];
+                    let ts = list_map(&tail, f);
+                    r.extend::<Vec<String>>(ts);
+                    r
+                } else if elts.len() == 1 {
+                    let head = &elts[0];
+                    vec![f(head)]
+                } else {
+                    vec![]
+                }
+            }
+            _ => vec![]
+        },
+        _ => vec![]
+    }
+}
+
+fn nat_to_word(list: &Term) -> u64
+{
+    match *list {
+        Term::Const(ref t) =>  match (**t).as_str() {
+            "zero" => 0,
+            _      => 0,
+        },
+        Term::App(ref t, ref elts) => {
+            match (**t).as_str () {
+                "succ" => {
+                    if elts.len() == 1 {
+                        let arg = &elts[0];
+                        let acc = nat_to_word(&arg);
+                        1+acc
+                    } else {
+                        1
+                    }
+                }
+                _ => 0
+            }
+        },
+        _ => 0
+    }
+}
+
+fn string_of_list(args: &[Gc<Term>]) -> String {
+    let mut strings = Vec::with_capacity(args.len());
+    for l in args.iter() {
+        strings.push(string_of_term(l));
+    }
+    strings.join(", ")
 }
 
 /* [string_of_env env] converts environment [env] to its string
@@ -244,3 +319,26 @@ pub fn make_complementary(heap: &mut Heap, t: &Atom) -> Option<Gc<Term>>
     }
 }
 
+pub fn str_to_nat(heap: &mut Heap, input: & str) -> Gc<Term>
+{
+    let value : u64 = input.parse::<u64>().unwrap();
+    let zero = heap.insert_string("zero".to_string());
+    let succ = heap.insert_string("succ".to_string());
+    let mut t = heap.insert_term(Term::Const(zero));
+    for _ in 0 .. value {
+      t = heap.insert_term(Term::App(succ.clone(), vec![t]));
+    }
+    t
+}
+
+pub fn vec_to_list(heap: &mut Heap, elts: Vec<Gc<Term>>) -> Gc<Term>
+{
+    let nil_str  = heap.insert_string("nil".to_string());
+    let nil      = heap.insert_term(Term::Const(nil_str));
+    let cons     = heap.insert_string("cons".to_string());
+    let mut t    = nil;
+    for e in elts.iter().rev() {
+        t = heap.insert_term(Term::App(cons.clone(), vec![e.to_owned(), t]));
+    }
+    t
+}

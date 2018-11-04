@@ -11,6 +11,7 @@ with ^ so that it always matches from the start of the remaining input */
 lazy_static! {
     static ref CONST   : Regex = Regex::new(r"^[a-z][_a-zA-Z0-9]*").unwrap();
     static ref VAR     : Regex = Regex::new(r"^[A-Z][_a-zA-Z0-9]*").unwrap();
+    static ref NUMBER  : Regex = Regex::new(r"^[0-9][0-9]*"       ).unwrap();
     static ref COMMENT : Regex = Regex::new(r"^#[^\n]*\n"         ).unwrap();
     static ref NEWLINE : Regex = Regex::new(r"^\n"                ).unwrap();
     static ref WS      : Regex = Regex::new(r"^[[:blank:]]"       ).unwrap();
@@ -22,8 +23,11 @@ lazy_static! {
     static ref STRING  : Regex = Regex::new(r#"^"[^"]*""#         ).unwrap();
     static ref LPAREN  : Regex = Regex::new(r"^\("                ).unwrap();
     static ref RPAREN  : Regex = Regex::new(r"^\)"                ).unwrap();
+    static ref LBRACKET: Regex = Regex::new(r"^\["                ).unwrap();
+    static ref RBRACKET: Regex = Regex::new(r"^\]"                ).unwrap();
     static ref COMMA   : Regex = Regex::new(r"^,"                 ).unwrap();
     static ref PERIOD  : Regex = Regex::new(r"^\."                ).unwrap();
+    static ref PIPE    : Regex = Regex::new(r"^\|"                ).unwrap();
 }
 
 pub struct Lexer<'input> {
@@ -93,18 +97,22 @@ impl<'input> Lexer<'input> {
 
         /* Lexers should match the longest string they can, so we list the
         variable length regular expressions first to achieve maximal munch */
-        actions![ CONST  => |s:&'input str| Token::CONST(s),
-                  VAR    => |s:&'input str| Token::VAR(s),
-                  USE    => |_| Token::USE,
-                  QUIT   => |_| Token::QUIT,
-                  GOAL   => |_| Token::GOAL,
-                  FROM   => |_| Token::FROM,
-                  TRUE   => |_| Token::TRUE,
-                  STRING => |s:&'input str| Token::STRING(&s[1..s.len()-1]),
-                  LPAREN => |_| Token::LPAREN,
-                  RPAREN => |_| Token::RPAREN,
-                  COMMA  => |_| Token::COMMA,
-                  PERIOD => |_| Token::PERIOD
+        actions![ CONST    => |s:&'input str| Token::CONST(s),
+                  VAR      => |s:&'input str| Token::VAR(s),
+                  NUMBER   => |s:&'input str| Token::NUMBER(s),
+                  USE      => |_| Token::USE,
+                  QUIT     => |_| Token::QUIT,
+                  GOAL     => |_| Token::GOAL,
+                  FROM     => |_| Token::FROM,
+                  TRUE     => |_| Token::TRUE,
+                  STRING   => |s:&'input str| Token::STRING(&s[1..s.len()-1]),
+                  LPAREN   => |_| Token::LPAREN,
+                  RPAREN   => |_| Token::RPAREN,
+                  LBRACKET => |_| Token::LBRACKET,
+                  RBRACKET => |_| Token::RBRACKET,
+                  COMMA    => |_| Token::COMMA,
+                  PERIOD   => |_| Token::PERIOD,
+                  PIPE     => |_| Token::PIPE
         ]
     }
 }
