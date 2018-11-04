@@ -119,7 +119,7 @@ fn string_of_app(t: &Term) -> String {
     match *t {
         Term::App(ref f, ref args) => match (**f).as_str() {
             "cons" => {
-                let list_str : Vec<String> = list_map(t, Box::new(string_of_term));
+                let list_str : Vec<String> = list_map(t, &string_of_term);
                 "[".to_string() + &list_str.join(", ") + "]"
             },
             "succ" => {
@@ -134,7 +134,7 @@ fn string_of_app(t: &Term) -> String {
     }
 }
 
-fn list_map(list: &Term, f: Box<Fn(&Term) -> String>) -> Vec<String>
+fn list_map<A>(list: &Term, f: &Fn(&Term) -> A) -> Vec<A>
 {
     match *list {
         Term::App(ref t, ref elts) => match (**t).as_str () {
@@ -144,7 +144,7 @@ fn list_map(list: &Term, f: Box<Fn(&Term) -> String>) -> Vec<String>
                     let tail = &elts[1];
                     let mut r = vec![f(head)];
                     let ts = list_map(&tail, f);
-                    r.extend::<Vec<String>>(ts);
+                    r.extend::<Vec<A>>(ts);
                     r
                 } else if elts.len() == 1 {
                     let head = &elts[0];
