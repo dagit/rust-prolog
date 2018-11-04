@@ -51,6 +51,7 @@ fn exec_cmd(db: &mut Database, heap: &mut Heap, cmd: &ToplevelCmd, rl: &mut Edit
         Goal(ref g)   => {
             interrupted.store(false, Ordering::SeqCst);
             solve_toplevel(db, heap, g, rl, interrupted, max_depth);
+            heap.cleanup();
             Status::Ok
         },
         Quit          => Status::Quit,

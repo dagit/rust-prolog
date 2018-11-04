@@ -86,7 +86,6 @@ struct Solver<'a> {
     // we've visited the entire search space but haven't yet hit
     // the search depth limit.
     cur_depth:   i32,
-    cleanup:     bool
 }
 
 impl<'a> Solver<'a> {
@@ -221,10 +220,6 @@ impl<'a> Solver<'a> {
             }
         }
     }
-
-    fn cleanup(&mut self) {
-        //self.heap.cleanup();
-    }
 }
 
 /* uses unification to search for framed atoms whose complement unifies with the given atom. */
@@ -300,7 +295,6 @@ pub fn solve_toplevel(db: &Database, heap: &mut Heap, c: &[Atom], rl: &mut Edito
             Err(Error::NoSolution)     => return println!("No"),
             Ok(())                     => return ()
         }
-        s.cleanup();
     }
 }
 

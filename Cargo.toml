@@ -15,9 +15,7 @@ lazy_static = "*"
 ctrlc       = "*"
 gc          = "*"
 gc_derive   = "*"
+lalrpop-util = "0.14"
 
-[dependencies.lalrpop-util]
-version = "*"
-
-[build-dependencies.lalrpop]
-version = "*"
+[build-dependencies]
+lalrpop = "0.14"

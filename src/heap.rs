@@ -42,4 +42,9 @@ impl Heap {
     {
         insert_thing(&mut self.strings, s)
     }
+
+    pub fn cleanup(&mut self){
+        //self.terms.retain(|ref t| { t.roots() > 1 });
+        //self.strings.retain(|ref s| { s.roots() > 1 });
+    }
 }
