@@ -139,7 +139,7 @@ fn main() {
             _                => panic!("Failed to parse prelude")
         }
 
-        println!(r#"Welcome to miniprolog!"#);
+        println!(r#"Welcome to rust-prolog!"#);
         println!(r#"This prolog interpreter is based on the ML code at the PLZoo:"#);
         println!(r#"  http://andrej.com/plzoo/html/miniprolog.html"#);
         println!(r#""#);
