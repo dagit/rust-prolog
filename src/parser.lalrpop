@@ -77,62 +77,63 @@ Expr = {
   Assertion
 };
 
+// This is a clever little trick to make it so there is less duplication in the
+// grammar.  When we hit a "Goal" production, we would like to use the ephemeral
+// heap for parsing the expressions. To achieve this, all the productions
+// rechable from "Goal" have both "Perm" and "Ephemeral" versions. We can use
+// the macro feature of lalrpop to fold these back into a single definition.
+// these two productions are here because we can use them to move the lifetime
+// parameter from the lalrpop macro into the rust value level. See for example,
+// "Atom" where it uses <l:Lifetime> at the start of each production.
+// Perm/Ephemeral always match and always produce the corresponding value of
+// type Lifetime. So this allows us to gain access to the parameter to the
+// lalrpop macro.
+Perm:      Lifetime = { => Lifetime::Perm      };
+Ephemeral: Lifetime = { => Lifetime::Ephemeral };
 
 // goal:
 //   | GOAL clause PERIOD        { Goal $2 }
 Goal: ToplevelCmd = {
-  "GOAL" <GClause> "PERIOD" => Goal(<>)
+  "GOAL" <Clause<Perm>> "PERIOD" => Goal(<>)
 };
-
 
 // assertion:
 //   | atom PERIOD               { Assert ($1, []) }
 //   | atom FROM clause PERIOD   { Assert ($1, $3) }
 Assertion: ToplevelCmd = {
-  <Atom> "PERIOD"                     => Assert((<>, vec![])),
-  <a:Atom> "FROM" <c:Clause> "PERIOD" => Assert((a,c))
+  <Atom<Perm>> "PERIOD"                           => Assert((<>, vec![])),
+  <a:Atom<Perm>> "FROM" <c:Clause<Perm>> "PERIOD" => Assert((a,c))
 };
 
 // atom:
 //   | CONST                     { ($1, []) }
 //   | CONST LPAREN args RPAREN  { ($1, $3) }
-Atom: (Constant, Vec<Gc<Term>>) = {
-  <"CONST">                              => (heap.insert_string(<>.to_string(), Lifetime::Perm), vec![]),
-  <c:"CONST"> "LPAREN" <a:Args> "RPAREN" => (heap.insert_string(c.to_string(), Lifetime::Perm), a)
-};
+Atom<Lifetime> : (Constant, Vec<Gc<Term>>) = {
 
-GAtom: (Constant, Vec<Gc<Term>>) = {
-  <"CONST">                               => (heap.insert_string(<>.to_string(), Lifetime::Ephemeral), vec![]),
-  <c:"CONST"> "LPAREN" <a:GArgs> "RPAREN" => (heap.insert_string(c.to_string(), Lifetime::Ephemeral), a)
+  <l:Lifetime> <c:"CONST"> =>
+      (heap.insert_string(c.to_string(), l), vec![]),
+
+  <l:Lifetime> <c:"CONST"> "LPAREN" <a:Args<Lifetime>> "RPAREN" =>
+      (heap.insert_string(c.to_string(), l), a)
+
 };
 
 // clause:
 //   | TRUE                      { [] }
 //   | atom                      { [$1] }
 //   | atom COMMA clause         { $1 :: $3 }
-Clause: Vec<Atom> = {
-  "TRUE"                      => vec![],
-  <Atom>                      => vec![<>],
-  <a:Atom> "COMMA" <c:Clause> => { once(a).chain(c.into_iter()).collect() }
-};
-
-GClause: Vec<Atom> = {
-  "TRUE"                        => vec![],
-  <GAtom>                       => vec![<>],
-  <a:GAtom> "COMMA" <c:GClause> => { once(a).chain(c.into_iter()).collect() }
+Clause<Lifetime>: Vec<Atom> = {
+  "TRUE"                                          => vec![],
+  <Atom<Lifetime>>                                => vec![<>],
+  <a:Atom<Lifetime>> "COMMA" <c:Clause<Lifetime>> => { once(a).chain(c.into_iter()).collect() }
 };
 
 // args:
 //   | literal            { [$1] }
 //   | literal COMMA args { $1 :: $3 }
-Args: Vec<Gc<Term>> = {
-  <Literal>                    => vec![<>],
-  <l:Literal> "COMMA" <a:Args> => { once(l).chain(a.into_iter()).collect() }
-};
-
-GArgs: Vec<Gc<Term>> = {
-  <GLiteral>                     => vec![<>],
-  <l:GLiteral> "COMMA" <a:GArgs> => { once(l).chain(a.into_iter()).collect() }
+Args<Lifetime>: Vec<Gc<Term>> = {
+  <Literal<Lifetime>>                              => vec![<>],
+  <l:Literal<Lifetime>> "COMMA" <a:Args<Lifetime>> => { once(l).chain(a.into_iter()).collect() }
 };
 
 // literal:
@@ -140,63 +141,35 @@ GArgs: Vec<Gc<Term>> = {
 //   | VAR                      { Var ($1, 0) }
 //   | NUMBER                   { convert to calls to succ }
 //   | CONST LPAREN args RPAREN { App ($1, $3) }
-Literal: Gc<Term> = {
-  <"CONST">                              => {
-    let c = heap.insert_string(<>.to_string(), Lifetime::Perm);
-    heap.insert_term( Const(c), Lifetime::Perm )
+Literal<Lifetime>: Gc<Term> = {
+  <l:Lifetime> <c:"CONST">                              => {
+    let c_str = heap.insert_string(c.to_string(), l);
+    heap.insert_term( Const(c_str), l )
   },
-  <"VAR">                                => {
-    let v = heap.insert_string(<>.to_string(), Lifetime::Perm);
-    heap.insert_term( Var((v, 0)), Lifetime::Perm )
+  <l:Lifetime> <v:"VAR">                                => {
+    let v_str = heap.insert_string(v.to_string(), l);
+    heap.insert_term( Var((v_str, 0)), l )
   },
-  <"NUMBER">                             => {
-    str_to_nat(heap, <>, Lifetime::Perm)
+  <l:Lifetime> <n:"NUMBER">                             => {
+    str_to_nat(heap, n, l)
   },
-  <c:"CONST"> "LPAREN" <a:Args> "RPAREN" => {
-    let app = heap.insert_string(c.to_string(), Lifetime::Perm);
-    heap.insert_term( App(app, a), Lifetime::Perm )
+  <l:Lifetime> <c:"CONST"> "LPAREN" <a:Args<Lifetime>> "RPAREN" => {
+    let app = heap.insert_string(c.to_string(), l);
+    heap.insert_term( App(app, a), l )
   },
-  ListLiteral =>  <>
+  ListLiteral<Lifetime> =>  <>
 };
 
-GLiteral: Gc<Term> = {
-  <"CONST">                              => {
-    let c = heap.insert_string(<>.to_string(), Lifetime::Ephemeral);
-    heap.insert_term( Const(c), Lifetime::Ephemeral)
+ListLiteral<Lifetime>: Gc<Term> = {
+  <l:Lifetime> "LBRACKET" "RBRACKET"                  => vec_to_list(heap, vec![], l),
+  <l:Lifetime> "LBRACKET" <a:Args<Lifetime>> "RBRACKET"         => {
+    vec_to_list(heap, a, l)
   },
-  <"VAR">                                => {
-    let v = heap.insert_string(<>.to_string(), Lifetime::Ephemeral);
-    heap.insert_term( Var((v, 0)), Lifetime::Ephemeral)
-  },
-  <"NUMBER">                             => {
-    str_to_nat(heap, <>, Lifetime::Ephemeral)
-  },
-  <c:"CONST"> "LPAREN" <a:GArgs> "RPAREN" => {
-    let app = heap.insert_string(c.to_string(), Lifetime::Ephemeral);
-    heap.insert_term( App(app, a), Lifetime::Ephemeral)
-  },
-  GListLiteral =>  <>
-};
-
-ListLiteral: Gc<Term> = {
-  "LBRACKET" "RBRACKET"                  => vec_to_list(heap, vec![], Lifetime::Perm),
-  "LBRACKET" <a:Args> "RBRACKET"         => {
-    vec_to_list(heap, a, Lifetime::Perm)
-  },
-  "LBRACKET" <head:Literal> "PIPE" <tail:Literal> "RBRACKET" => {
+  <l:Lifetime> "LBRACKET" <head:Literal<Lifetime>> "PIPE" <tail:Literal<Lifetime>> "RBRACKET" => {
+    // "cons" is a common string mentioned in the prelude so it can be hardcoded
+    // to Perm.
     let cons = heap.insert_string("cons".to_string(), Lifetime::Perm);
-    heap.insert_term(Term::App(cons, vec![head, tail]), Lifetime::Perm)
-  }
-};
-
-GListLiteral: Gc<Term> = {
-  "LBRACKET" "RBRACKET"                   => vec_to_list(heap, vec![], Lifetime::Ephemeral),
-  "LBRACKET" <a:GArgs> "RBRACKET"         => {
-    vec_to_list(heap, a, Lifetime::Ephemeral)
-  },
-  "LBRACKET" <head:GLiteral> "PIPE" <tail:GLiteral> "RBRACKET" => {
-    let cons = heap.insert_string("cons".to_string(), Lifetime::Ephemeral);
-    heap.insert_term(Term::App(cons, vec![head, tail]), Lifetime::Ephemeral)
+    heap.insert_term(Term::App(cons, vec![head, tail]), l)
   }
 };
 
