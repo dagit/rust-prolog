@@ -2,7 +2,7 @@
 use std::iter::once;
 use gc::Gc;
 
-use heap::Heap;
+use heap::{Heap, Lifetime};
 
 use syntax::*;
 use syntax::Term::*;
@@ -98,8 +98,8 @@ Assertion: ToplevelCmd = {
 //   | CONST                     { ($1, []) }
 //   | CONST LPAREN args RPAREN  { ($1, $3) }
 Atom: (Constant, Vec<Gc<Term>>) = {
-  <"CONST">                              => (heap.insert_string(<>.to_string()), vec![]),
-  <c:"CONST"> "LPAREN" <a:Args> "RPAREN" => (heap.insert_string(c.to_string()), a)
+  <"CONST">                              => (heap.insert_string(<>.to_string(), Lifetime::Perm), vec![]),
+  <c:"CONST"> "LPAREN" <a:Args> "RPAREN" => (heap.insert_string(c.to_string(), Lifetime::Perm), a)
 };
 
 
@@ -130,31 +130,31 @@ Args: Vec<Gc<Term>> = {
 //   | CONST LPAREN args RPAREN { App ($1, $3) }
 Literal: Gc<Term> = {
   <"CONST">                              => {
-    let c = heap.insert_string(<>.to_string());
-    heap.insert_term( Const(c) )
+    let c = heap.insert_string(<>.to_string(), Lifetime::Perm);
+    heap.insert_term( Const(c), Lifetime::Perm )
   },
   <"VAR">                                => {
-    let v = heap.insert_string(<>.to_string());
-    heap.insert_term( Var((v, 0)) )
+    let v = heap.insert_string(<>.to_string(), Lifetime::Perm);
+    heap.insert_term( Var((v, 0)), Lifetime::Perm )
   },
   <"NUMBER">                             => {
-    str_to_nat(heap, <>)
+    str_to_nat(heap, <>, Lifetime::Perm)
   },
   <c:"CONST"> "LPAREN" <a:Args> "RPAREN" => {
-    let app = heap.insert_string(c.to_string());
-    heap.insert_term( App(app, a) )
+    let app = heap.insert_string(c.to_string(), Lifetime::Perm);
+    heap.insert_term( App(app, a), Lifetime::Perm )
   },
   ListLiteral =>  <>
 };
 
 ListLiteral: Gc<Term> = {
-  "LBRACKET" "RBRACKET"                  => vec_to_list(heap, vec![]),
+  "LBRACKET" "RBRACKET"                  => vec_to_list(heap, vec![], Lifetime::Perm),
   "LBRACKET" <a:Args> "RBRACKET"         => {
-    vec_to_list(heap, a)
+    vec_to_list(heap, a, Lifetime::Perm)
   },
   "LBRACKET" <head:Literal> "PIPE" <tail:Literal> "RBRACKET" => {
-    let cons = heap.insert_string("cons".to_string());
-    heap.insert_term(Term::App(cons, vec![head, tail]))
+    let cons = heap.insert_string("cons".to_string(), Lifetime::Perm);
+    heap.insert_term(Term::App(cons, vec![head, tail]), Lifetime::Perm)
   }
 };
 

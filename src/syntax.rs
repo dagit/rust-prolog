@@ -8,7 +8,7 @@ use std::collections::vec_deque::VecDeque;
 use std::collections::HashMap;
 use gc::Gc;
 
-use heap::Heap;
+use heap::{Heap, Lifetime};
 
 /* Constants and atoms are strings starting with lower-case letters. */
 pub type Constant = Gc<String>;
@@ -67,7 +67,7 @@ fn lookup(env: &Environment, heap: &mut Heap, x: &Variable) -> Gc<Term> {
     match env.get(x) {
         Some(y) => y.clone(),
         None    => {
-            heap.insert_term(Term::Var(x.clone()))
+            heap.insert_term(Term::Var(x.clone()), Lifetime::Ephemeral)
         }
     }
 }
@@ -86,13 +86,13 @@ pub fn subst_term(env: &Environment, heap: &mut Heap, t: &Term) -> Gc<Term> {
                 subst_term(env, heap, &new_t)
             }
         },
-        Term::Const(_) => heap.insert_term(t.clone()),
+        Term::Const(_) => heap.insert_term(t.clone(), Lifetime::Ephemeral),
         Term::App(ref c, ref ls) => {
             let mut new_ls = Vec::with_capacity(ls.len());
             for l in ls.iter() {
                 new_ls.push(subst_term(env, heap, l));
             }
-            heap.insert_term(Term::App(c.clone(), new_ls))
+            heap.insert_term(Term::App(c.clone(), new_ls), Lifetime::Ephemeral)
         }
     }
 }
@@ -244,7 +244,7 @@ pub fn occurs(x: &Variable, t: &Term) -> bool {
 // ...
 // not(bn) :- not(a), b1, ..., b(n-1)
 // For convenience, we also include the original rule.
-pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>)) -> Database
+pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>), lt: Lifetime) -> Database
 {
     fn term_to_atom(t: &Term) -> Option<Atom> {
         match *t {
@@ -259,11 +259,11 @@ pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>)) -> Datab
 
     let mut ret: Database = once(a.to_owned()).collect();
 
-    match make_complementary(heap, &a.0) {
+    match make_complementary(heap, &a.0, lt) {
         None           => (),
         Some(not_head) => {
             for (idx, t) in a.1.iter().enumerate() {
-                match make_complementary(heap, t) {
+                match make_complementary(heap, t, lt) {
                     None        => (),
                     Some(not_t) => {
                         if let (Some(not_head), Some(not_t)) = (term_to_atom(&not_head), term_to_atom(&not_t)) {
@@ -286,7 +286,7 @@ pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>)) -> Datab
 //
 // Note: this also applies double negation elimination (eg., not(not(p)) = p).
 //
-pub fn make_complementary(heap: &mut Heap, t: &Atom) -> Option<Gc<Term>>
+pub fn make_complementary(heap: &mut Heap, t: &Atom, lt: Lifetime) -> Option<Gc<Term>>
 {
     match *t {
         // this case bakes in double negation elimnation, so that
@@ -305,40 +305,40 @@ pub fn make_complementary(heap: &mut Heap, t: &Atom) -> Option<Gc<Term>>
         (ref c, ref ts) => {
             match ts.len() {
                 0 => {
-                    let tail = heap.insert_term(Term::Const(c.to_owned()));
-                    let not  = heap.insert_string(NOT.to_string());
-                    Some(heap.insert_term(Term::App(not, vec![tail])))
+                    let tail = heap.insert_term(Term::Const(c.to_owned()), lt);
+                    let not  = heap.insert_string(NOT.to_string(), Lifetime::Perm);
+                    Some(heap.insert_term(Term::App(not, vec![tail]), lt))
                 }
                 _ => {
-                    let tail = heap.insert_term(Term::App(c.to_owned(), ts.to_owned()));
-                    let not  = heap.insert_string(NOT.to_string());
-                    Some(heap.insert_term(Term::App(not, vec![tail])))
+                    let tail = heap.insert_term(Term::App(c.to_owned(), ts.to_owned()), lt);
+                    let not  = heap.insert_string(NOT.to_string(), Lifetime::Perm);
+                    Some(heap.insert_term(Term::App(not, vec![tail]), lt))
                 }
             }
         }
     }
 }
 
-pub fn str_to_nat(heap: &mut Heap, input: & str) -> Gc<Term>
+pub fn str_to_nat(heap: &mut Heap, input: & str, lt: Lifetime) -> Gc<Term>
 {
     let value : u64 = input.parse::<u64>().unwrap();
-    let zero = heap.insert_string("zero".to_string());
-    let succ = heap.insert_string("succ".to_string());
-    let mut t = heap.insert_term(Term::Const(zero));
+    let zero = heap.insert_string("zero".to_string(), Lifetime::Perm);
+    let succ = heap.insert_string("succ".to_string(), Lifetime::Perm);
+    let mut t = heap.insert_term(Term::Const(zero), Lifetime::Perm);
     for _ in 0 .. value {
-      t = heap.insert_term(Term::App(succ.clone(), vec![t]));
+      t = heap.insert_term(Term::App(succ.clone(), vec![t]), lt);
     }
     t
 }
 
-pub fn vec_to_list(heap: &mut Heap, elts: Vec<Gc<Term>>) -> Gc<Term>
+pub fn vec_to_list(heap: &mut Heap, elts: Vec<Gc<Term>>, lt: Lifetime) -> Gc<Term>
 {
-    let nil_str  = heap.insert_string("nil".to_string());
-    let nil      = heap.insert_term(Term::Const(nil_str));
-    let cons     = heap.insert_string("cons".to_string());
+    let nil_str  = heap.insert_string("nil".to_string(), Lifetime::Perm);
+    let nil      = heap.insert_term(Term::Const(nil_str), Lifetime::Perm);
+    let cons     = heap.insert_string("cons".to_string(), Lifetime::Perm);
     let mut t    = nil;
     for e in elts.iter().rev() {
-        t = heap.insert_term(Term::App(cons.clone(), vec![e.to_owned(), t]));
+        t = heap.insert_term(Term::App(cons.clone(), vec![e.to_owned(), t]), lt);
     }
     t
 }

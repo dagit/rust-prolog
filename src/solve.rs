@@ -9,7 +9,7 @@ use gc::Gc;
 use syntax::{Database, Environment, Assertion, Term, Atom,
             string_of_env, make_complementary, generate_contrapositives};
 use unify::{unify_atoms, unify_terms};
-use heap::Heap;
+use heap::{Heap, Lifetime};
 use rustyline::Editor;
 
 /* A value of type [choice] represents a choice point in the proof
@@ -38,7 +38,7 @@ global variable, like in ML */
 
 /* Add a new assertion at the end of the current database. */
 pub fn assert(database: &mut Database, heap: &mut Heap, a: &Assertion) {
-    let mut contrapositives = generate_contrapositives(heap, a);
+    let mut contrapositives = generate_contrapositives(heap, a, Lifetime::Perm);
     database.append(&mut contrapositives);
 }
 
@@ -52,14 +52,14 @@ enum Error {
 term [t] so that they have level [n]. */
 fn renumber_term(heap: &mut Heap, n: i32, t: &Term) -> Gc<Term> {
     match *t {
-        Term::Var((ref x, _))    => heap.insert_term(Term::Var((x.clone(),n))),
-        Term::Const(ref c)       => heap.insert_term(Term::Const(c.clone())),
+        Term::Var((ref x, _))    => heap.insert_term(Term::Var((x.clone(),n)), Lifetime::Ephemeral),
+        Term::Const(ref c)       => heap.insert_term(Term::Const(c.clone()), Lifetime::Ephemeral),
         Term::App(ref c, ref ts) => {
             let new_t = Term::App(c.clone(),
                                   ts.iter()
                                     .map( |t| renumber_term(heap, n, t) )
                                     .collect::<Vec<Gc<Term>>>());
-            heap.insert_term(new_t)
+            heap.insert_term(new_t, Lifetime::Ephemeral)
         }
     }
 }
@@ -227,7 +227,7 @@ fn is_complementary(heap: &mut Heap, a: &Atom, c: &FramableClause) -> bool
 {
     // this attemps to find a "complementary" match using unification
     // eg., not(p) is complementary to p (and vice-versa)
-    let try_complement = make_complementary(heap, a);
+    let try_complement = make_complementary(heap, a, Lifetime::Ephemeral);
     match try_complement {
         Some(t) => {
             //println!("negation, t = {}", string_of_term(&t));
@@ -235,9 +235,9 @@ fn is_complementary(heap: &mut Heap, a: &Atom, c: &FramableClause) -> bool
                 match *x {
                     ((ref c, ref ts), FrameStatus::Framed) => {
                         let t2 = if ts.is_empty() {
-                            heap.insert_term(Term::Const(c.to_owned()))
+                            heap.insert_term(Term::Const(c.to_owned()), Lifetime::Ephemeral)
                         } else {
-                            heap.insert_term(Term::App(c.to_owned(), ts.to_owned()))
+                            heap.insert_term(Term::App(c.to_owned(), ts.to_owned()), Lifetime::Ephemeral)
                         };
                         match unify_terms(&HashMap::new(), heap, &t, &t2) {
                             Err(_) => (),
