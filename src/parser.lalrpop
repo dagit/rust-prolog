@@ -1,4 +1,3 @@
-#![cfg_attr(feature = "cargo-clippy", allow(clippy))]
 use std::iter::once;
 use gc::Gc;
 

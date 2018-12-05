@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate lazy_static;   // lazy static initializers
+#[macro_use]
 extern crate lalrpop_util;  // parser generator
 extern crate rustyline;     // line editing and ctrl+c handling
 extern crate ctrlc;         // we still need ctrl+c handling when not in rustyline
@@ -14,7 +15,7 @@ pub mod solve;
 pub mod token;
 pub mod lexer;
 pub mod heap;
-pub mod parser; // lalrpop generated parser
+lalrpop_mod!(pub parser); // lalrpop generated parser
 
 use std::fs::File;
 use std::io::Error;
@@ -23,7 +24,7 @@ use std::collections::vec_deque::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use parser::parse_Toplevel;
+use parser::ToplevelParser;
 
 use solve::{solve_toplevel, assert};
 use syntax::Database;
@@ -38,6 +39,10 @@ enum Status<E> {
     Ok,
     Quit,
     Err(E),
+}
+
+lazy_static! {
+    static ref PARSER: ToplevelParser = ToplevelParser::new();
 }
 
 /* [exec_cmd cmd] executes the toplevel command [cmd].
@@ -78,7 +83,7 @@ fn exec_file(db: &mut Database, heap: &mut Heap, filename: &str, rl: &mut Editor
             match f.read_to_string(&mut s) {
                 Err(e) => Status::Err(e),
                 Ok(_)  => {
-                    match parse_Toplevel(heap, &s, Lexer::new(&s)) {
+                    match PARSER.parse(heap, &s, Lexer::new(&s)) {
                         Ok(cmds) => exec_cmds(db, heap, &cmds, rl, interrupted, max_depth),
                         Err(_)   => { println!("Parse error"); Status::Ok }
                     }
@@ -130,7 +135,7 @@ fn main() {
         let mut heap = Heap::new();
         /* Load up the standard prelude */
         let prelude_str = include_str!("prelude.pl");
-        match parse_Toplevel(&mut heap, prelude_str, Lexer::new(prelude_str)) {
+        match PARSER.parse(&mut heap, prelude_str, Lexer::new(prelude_str)) {
             Ok(cmds) => match exec_cmds(&mut db, &mut heap, &cmds, &mut rl, &interrupted, max_depth) {
                 Status::Quit   => panic!("$quit from prelude"),
                 Status::Err(_) => panic!("Exiting due to unexpected error in prelude"),
@@ -159,7 +164,7 @@ fn main() {
                     if s == "" { continue };
                     // First add it to the history
                     rl.add_history_entry(s.clone());
-                    let parse_result = parse_Toplevel(&mut heap, &s, Lexer::new(&s));
+                    let parse_result = PARSER.parse(&mut heap, &s, Lexer::new(&s));
                     match parse_result {
                         Ok(commands)  => match exec_cmds(&mut db, &mut heap, &commands, &mut rl, &interrupted, max_depth) {
                             Status::Quit   => return,
