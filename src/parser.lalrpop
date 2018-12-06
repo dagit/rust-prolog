@@ -1,13 +1,13 @@
 use std::iter::once;
 use gc::Gc;
 
-use heap::{Heap, Lifetime};
+use crate::heap::{Heap, Lifetime};
 
-use syntax::*;
-use syntax::Term::*;
-use syntax::ToplevelCmd::*;
+use crate::syntax::*;
+use crate::syntax::Term::*;
+use crate::syntax::ToplevelCmd::*;
 
-use token::*;
+use crate::token::*;
 
 grammar<'input>(heap: &mut Heap, text: &'input str);
 

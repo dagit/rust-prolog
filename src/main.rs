@@ -1,21 +1,9 @@
-#[macro_use]
-extern crate lazy_static;   // lazy static initializers
-#[macro_use]
-extern crate lalrpop_util;  // parser generator
-extern crate rustyline;     // line editing and ctrl+c handling
-extern crate ctrlc;         // we still need ctrl+c handling when not in rustyline
-extern crate regex;
-#[macro_use]
-extern crate gc_derive;
-extern crate gc;
-
 pub mod syntax;
 pub mod unify;
 pub mod solve;
 pub mod token;
 pub mod lexer;
 pub mod heap;
-lalrpop_mod!(pub parser); // lalrpop generated parser
 
 use std::fs::File;
 use std::io::Error;
@@ -24,16 +12,20 @@ use std::collections::vec_deque::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use parser::ToplevelParser;
-
-use solve::{solve_toplevel, assert};
-use syntax::Database;
-use syntax::ToplevelCmd;
-use syntax::ToplevelCmd::*;
-use heap::Heap;
-use lexer::Lexer;
-
 use rustyline::Editor;
+use lazy_static::lazy_static;
+
+use crate::parser::ToplevelParser;
+use crate::solve::{solve_toplevel, assert};
+use crate::syntax::Database;
+use crate::syntax::ToplevelCmd;
+use crate::syntax::ToplevelCmd::*;
+use crate::heap::Heap;
+use crate::lexer::Lexer;
+
+use lalrpop_util::lalrpop_mod;
+
+lalrpop_mod!(pub parser); // lalrpop generated parser
 
 enum Status<E> {
     Ok,

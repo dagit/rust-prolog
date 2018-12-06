@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::hash::Hash;
 use gc::{Gc,Trace};
 
-use syntax::Term;
+use crate::syntax::Term;
 
 type TermSet   = HashSet<Gc<Term>>;
 type StringSet = HashSet<Gc<String>>;

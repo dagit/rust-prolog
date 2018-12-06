@@ -7,8 +7,9 @@ use std::iter::once;
 use std::collections::vec_deque::VecDeque;
 use std::collections::HashMap;
 use gc::Gc;
+use gc_derive::{Trace, Finalize};
 
-use heap::{Heap, Lifetime};
+use crate::heap::{Heap, Lifetime};
 
 /* Constants and atoms are strings starting with lower-case letters. */
 pub type Constant = Gc<String>;

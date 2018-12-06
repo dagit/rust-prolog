@@ -1,8 +1,10 @@
 #![cfg_attr(feature = "cargo-clippy", allow(trivial_regex))]
 use regex::Regex;
 
-use token::Token;
-use token::Error;
+use crate::token::Token;
+use crate::token::Error;
+
+use lazy_static::lazy_static;
 
 pub type Spanned<T> = (usize, T, usize);
 

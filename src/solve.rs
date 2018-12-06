@@ -6,10 +6,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use gc::Gc;
 
-use syntax::{Database, Environment, Assertion, Term, Atom,
-            string_of_env, make_complementary, generate_contrapositives};
-use unify::{unify_atoms, unify_terms};
-use heap::{Heap, Lifetime};
+use crate::syntax::{Database, Environment, Assertion, Term, Atom,
+                    string_of_env, make_complementary, generate_contrapositives};
+use crate::unify::{unify_atoms, unify_terms};
+use crate::heap::{Heap, Lifetime};
 use rustyline::Editor;
 
 /* A value of type [choice] represents a choice point in the proof

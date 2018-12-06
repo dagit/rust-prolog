@@ -1,7 +1,7 @@
 use gc::Gc;
 
-use syntax::{Environment, Term, Atom, subst_term, occurs};
-use heap::{Heap, Lifetime};
+use crate::syntax::{Environment, Term, Atom, subst_term, occurs};
+use crate::heap::{Heap, Lifetime};
 
 /* [NoUnify] is used when terms cannot be unified. */
 pub struct NoUnify;
