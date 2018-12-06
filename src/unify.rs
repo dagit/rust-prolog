@@ -22,8 +22,6 @@ pub fn unify_terms(env:&Environment, heap: &mut Heap, t1: &Term, t2: &Term)
                 Err(NoUnify)
             } else {
                 let mut new_env = env.clone();
-                // TODO: split up these branches so the Rc can be
-                // reused directly.
                 new_env.insert(y.clone(),heap.insert_term(t.clone(), Lifetime::Ephemeral));
                 Ok(new_env)
             },
