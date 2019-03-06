@@ -17,6 +17,8 @@ ctrlc       = "*"
 gc          = "*"
 gc_derive   = "*"
 lalrpop-util = ">=0.16.2"
+structopt   = "*"
+directories = "*"
 
 [build-dependencies]
 lalrpop = ">=0.16.2"

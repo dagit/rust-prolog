@@ -15,6 +15,10 @@ use std::sync::Arc;
 use rustyline::Editor;
 use lazy_static::lazy_static;
 
+// Option parsing
+use std::path::PathBuf;
+use structopt::StructOpt;
+
 use crate::parser::ToplevelParser;
 use crate::solve::{solve_toplevel, assert};
 use crate::syntax::Database;
@@ -26,6 +30,20 @@ use crate::lexer::Lexer;
 use lalrpop_util::lalrpop_mod;
 
 lalrpop_mod!(pub parser); // lalrpop generated parser
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "prolog", about = "prolog usage")]
+struct Opt {
+    /// Activate verbose mode (currently does nothing)
+    #[structopt(short = "v", long = "verbose")]
+    verbose: bool,
+    /// Print usage and quit
+    #[structopt(short = "h", long = "help")]
+    help: bool,
+    /// Optionally read a file on start up
+    #[structopt(parse(from_os_str))]
+    input: Option<PathBuf>,
+}
 
 enum Status<E> {
     Ok,
@@ -111,6 +129,7 @@ fn main() {
      */
     let max_depth = 10_000i32;
     let interpreter = thread::Builder::new().stack_size(128 * 1024 * 1024).spawn(move || {
+        let opt = Opt::from_args();
 
         // This is for handling Ctrl-C. We note the interruption
         // so that we can check for it inside the computations, and
@@ -146,6 +165,27 @@ fn main() {
         println!(r#"    A :- B1, ..., Bn.    Assert an inference rule."#);
         println!(r#"    $quit                Exit interpreter."#);
         println!(r#"    $use "filename"      Execute commands from a file."#);
+
+        if opt.verbose {
+            println!("{:?}", opt);
+        }
+
+        if let Some(path) = opt.input {
+            use std::io::prelude::*;
+            let mut file = File::open(path).expect("Unable to open file");
+            let mut contents = String::new();
+            file.read_to_string(&mut contents).expect("Unable to read file");
+
+            match PARSER.parse(&mut heap, &contents, Lexer::new(&contents)) {
+                Ok(cmds) => match exec_cmds(&mut db, &mut heap, &cmds, &mut rl, &interrupted, max_depth) {
+                    Status::Quit   => panic!("$quit from user input"),
+                    Status::Err(_) => panic!("Exiting due to unexpected error in user input"),
+                    _              => ()
+                },
+                _                => panic!("Failed to parse user input")
+            }
+
+        }
 
         let prompt = "Prolog> ";
 
