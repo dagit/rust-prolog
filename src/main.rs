@@ -19,6 +19,8 @@ use lazy_static::lazy_static;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+use directories::{ProjectDirs};
+
 use crate::parser::ToplevelParser;
 use crate::solve::{solve_toplevel, assert};
 use crate::syntax::Database;
@@ -187,6 +189,19 @@ fn main() {
 
         }
 
+        // failure to load history is a silent failure :(
+        if let Some(proj_dirs) = ProjectDirs::from("com", "dagit", "rust-prolog") {
+            let hist_dir = proj_dirs.cache_dir();
+            if let Ok(()) = std::fs::create_dir_all(hist_dir) {
+                let mut hist_path = hist_dir.to_path_buf();
+                hist_path.push("history");
+                match rl.load_history(&hist_path) {
+                    Err(_) => (), // :(
+                    Ok(()) => (),
+                }
+            }
+        }
+
         let prompt = "Prolog> ";
 
         loop {
@@ -221,6 +236,19 @@ fn main() {
                 }
             }
         }
+        // failure to save history is a silent failure :(
+        if let Some(proj_dirs) = ProjectDirs::from("com", "dagit", "rust-prolog") {
+            let hist_dir = proj_dirs.cache_dir();
+            if let Ok(()) = std::fs::create_dir_all(hist_dir) {
+                let mut hist_path = hist_dir.to_path_buf();
+                hist_path.push("history");
+                match rl.save_history(&hist_path) {
+                    Err(_) => (), // :(
+                    Ok(()) => (),
+                }
+            }
+        }
     }).unwrap();
     interpreter.join().unwrap();
+
 }
