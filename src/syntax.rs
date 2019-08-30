@@ -135,7 +135,7 @@ fn string_of_app(t: &Term) -> String {
     }
 }
 
-fn list_map<A>(list: &Term, f: &Fn(&Term) -> A) -> Vec<A>
+fn list_map<A>(list: &Term, f: &dyn Fn(&Term) -> A) -> Vec<A>
 {
     match *list {
         Term::App(ref t, ref elts) => match (**t).as_str () {
