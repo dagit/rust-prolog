@@ -50,7 +50,7 @@ pub Toplevel: Vec<ToplevelCmd> = {
 //   | expr toplevel            { $1 :: $2 }
 Exprtop: Vec<ToplevelCmd> = {
   <Expr>                => vec![<>],
-  <e:Expr> <t:Toplevel> => { once(e).chain(t.into_iter()).collect() }
+  <e:Expr> <t:Toplevel> => once(e).chain(t.into_iter()).collect()
 };
 
 // cmdtop:
@@ -58,7 +58,7 @@ Exprtop: Vec<ToplevelCmd> = {
 //   | cmd toplevel             { $1 :: $2 }
 Cmdtop: Vec<ToplevelCmd> = {
   <Cmd>                => vec![<>],
-  <c:Cmd> <t:Toplevel> => { once(c).chain(t.into_iter()).collect() }
+  <c:Cmd> <t:Toplevel> => once(c).chain(t.into_iter()).collect()
 };
 
 // cmd:
@@ -125,7 +125,7 @@ Atom<Lifetime> : (Constant, Vec<Gc<Term>>) = {
 Clause<Lifetime>: Vec<Atom> = {
   "TRUE"                                          => vec![],
   <Atom<Lifetime>>                                => vec![<>],
-  <a:Atom<Lifetime>> "COMMA" <c:Clause<Lifetime>> => { once(a).chain(c.into_iter()).collect() }
+  <a:Atom<Lifetime>> "COMMA" <c:Clause<Lifetime>> => once(a).chain(c.into_iter()).collect()
 };
 
 // args:
@@ -133,7 +133,7 @@ Clause<Lifetime>: Vec<Atom> = {
 //   | literal COMMA args { $1 :: $3 }
 Args<Lifetime>: Vec<Gc<Term>> = {
   <Literal<Lifetime>>                              => vec![<>],
-  <l:Literal<Lifetime>> "COMMA" <a:Args<Lifetime>> => { once(l).chain(a.into_iter()).collect() }
+  <l:Literal<Lifetime>> "COMMA" <a:Args<Lifetime>> => once(l).chain(a.into_iter()).collect()
 };
 
 // literal:
