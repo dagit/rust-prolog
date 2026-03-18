@@ -67,7 +67,7 @@ fn exec_cmd(
     db: &mut Database,
     heap: &mut Heap,
     cmd: &ToplevelCmd,
-    rl: &mut Editor<()>,
+    rl: &mut Editor<(), rustyline::history::DefaultHistory>,
     interrupted: &Arc<AtomicBool>,
     max_depth: i32,
 ) -> Status<Error> {
@@ -100,7 +100,7 @@ fn exec_file(
     db: &mut Database,
     heap: &mut Heap,
     filename: &str,
-    rl: &mut Editor<()>,
+    rl: &mut Editor<(), rustyline::history::DefaultHistory>,
     interrupted: &Arc<AtomicBool>,
     max_depth: i32,
 ) -> Status<Error> {
@@ -128,7 +128,7 @@ fn exec_cmds(
     db: &mut Database,
     heap: &mut Heap,
     cmds: &[ToplevelCmd],
-    rl: &mut Editor<()>,
+    rl: &mut Editor<(), rustyline::history::DefaultHistory>,
     interrupted: &Arc<AtomicBool>,
     max_depth: i32,
 ) -> Status<Error> {
@@ -175,7 +175,8 @@ fn main() {
             })
             .expect("Error setting Ctrl-C handler");
 
-            let mut rl = Editor::<()>::new();
+            let mut rl = Editor::<(), rustyline::history::DefaultHistory>::new()
+                .expect("Failed to create editor");
             let mut db: Database = VecDeque::new();
             let mut heap = Heap::new();
             /* Load up the standard prelude */
@@ -251,7 +252,7 @@ fn main() {
                             continue;
                         };
                         // First add it to the history
-                        rl.add_history_entry(s.clone());
+                        let _ = rl.add_history_entry(s.clone());
                         let parse_result = PARSER.parse(&mut heap, &s, Lexer::new(&s));
                         match parse_result {
                             Ok(commands) => match exec_cmds(

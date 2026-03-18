@@ -12,6 +12,7 @@ use crate::syntax::{
     Environment, Term,
 };
 use crate::unify::{unify_atoms, unify_terms};
+use rustyline::history::DefaultHistory;
 use rustyline::Editor;
 
 /* A value of type [choice] represents a choice point in the proof
@@ -85,7 +86,7 @@ struct Solver<'a> {
     env: Environment,
     heap: &'a mut Heap,
     interrupted: &'a Arc<AtomicBool>,
-    rl: &'a mut Editor<()>,
+    rl: &'a mut Editor<(), DefaultHistory>,
     // Maximum depth for the current iteration.
     max_depth: i32,
     // The maximum seen depth in the current iteration.
@@ -99,7 +100,7 @@ impl<'a> Solver<'a> {
     fn new(
         db: &'a Database,
         heap: &'a mut Heap,
-        rl: &'a mut Editor<()>,
+        rl: &'a mut Editor<(), DefaultHistory>,
         interrupted: &'a Arc<AtomicBool>,
         max_depth: i32,
     ) -> Self {
@@ -299,7 +300,7 @@ pub fn solve_toplevel(
     db: &Database,
     heap: &mut Heap,
     c: &[Atom],
-    rl: &mut Editor<()>,
+    rl: &mut Editor<(), DefaultHistory>,
     interrupted: &Arc<AtomicBool>,
     max_depth: i32,
 ) {
