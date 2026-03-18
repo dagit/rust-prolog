@@ -304,9 +304,9 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "gc"
-version = "0.3.6"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c94b8d46989f31474299e1483db243a9ed1f8a7d8508a78c91449e76e9ef6756"
+checksum = "1bd7fce06a0aabc277bd4605d94ad766841b88ab9c48f45bbef7ee3f14084dd3"
 
 [[package]]
 name = "gc_derive"
