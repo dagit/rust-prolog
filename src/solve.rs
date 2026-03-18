@@ -70,7 +70,7 @@ fn renumber_term(heap: &mut Heap, n: i32, t: &Term) -> Gc<Term> {
 
 /* [renumber_atom n a] renumbers all variable instances occurring in
 atom [a] so that they have level [n]. */
-fn renumber_atom(heap: &mut Heap, n: i32, &(ref c, ref ts): &Atom) -> Atom {
+fn renumber_atom(heap: &mut Heap, n: i32, (c, ts): &Atom) -> Atom {
     (
         c.clone(),
         ts.iter()
@@ -107,10 +107,10 @@ impl<'a> Solver<'a> {
             database: db,
             choices: vec![],
             env: HashMap::new(),
-            heap: heap,
-            interrupted: interrupted,
-            rl: rl,
-            max_depth: max_depth,
+            heap,
+            interrupted,
+            rl,
+            max_depth,
             cur_depth: 0,
         }
     }
@@ -138,7 +138,7 @@ impl<'a> Solver<'a> {
             match readline {
                 Ok(s) => {
                     let input = s.trim();
-                    if input == "y" || input == "yes" || input == "" {
+                    if input == "y" || input == "yes" || input.is_empty() {
                         self.continue_search()
                     } else {
                         Err(Error::NoSolution)
@@ -228,7 +228,7 @@ impl<'a> Solver<'a> {
                         let d = d
                             .into_iter()
                             .chain(once((a, FrameStatus::Framed)))
-                            .chain(new_c.into_iter())
+                            .chain(new_c)
                             .collect::<FramableClause>();
                         self.solve(self.database, &d, n + 1)
                     }
@@ -243,30 +243,21 @@ fn is_complementary(heap: &mut Heap, a: &Atom, c: &FramableClause) -> bool {
     // this attemps to find a "complementary" match using unification
     // eg., not(p) is complementary to p (and vice-versa)
     let try_complement = make_complementary(heap, a, Lifetime::Ephemeral);
-    match try_complement {
-        Some(t) => {
-            //println!("negation, t = {}", string_of_term(&t));
-            for x in c {
-                match *x {
-                    ((ref c, ref ts), FrameStatus::Framed) => {
-                        let t2 = if ts.is_empty() {
-                            heap.insert_term(Term::Const(c.to_owned()), Lifetime::Ephemeral)
-                        } else {
-                            heap.insert_term(
-                                Term::App(c.to_owned(), ts.to_owned()),
-                                Lifetime::Ephemeral,
-                            )
-                        };
-                        match unify_terms(&HashMap::new(), heap, &t, &t2) {
-                            Err(_) => (),
-                            Ok(_) => return true,
-                        }
-                    }
-                    _ => (),
+    if let Some(t) = try_complement {
+        //println!("negation, t = {}", string_of_term(&t));
+        for x in c {
+            if let ((ref c, ref ts), FrameStatus::Framed) = *x {
+                let t2 = if ts.is_empty() {
+                    heap.insert_term(Term::Const(c.to_owned()), Lifetime::Ephemeral)
+                } else {
+                    heap.insert_term(Term::App(c.to_owned(), ts.to_owned()), Lifetime::Ephemeral)
+                };
+                match unify_terms(&HashMap::new(), heap, &t, &t2) {
+                    Err(_) => (),
+                    Ok(_) => return true,
                 }
             }
         }
-        None => (),
     }
     false
 }
@@ -325,7 +316,7 @@ pub fn solve_toplevel(
         match s.solve(db, &c, 1) {
             Err(Error::DepthExhausted) => depth += 1,
             Err(Error::NoSolution) => return println!("No"),
-            Ok(()) => return (),
+            Ok(()) => return,
         }
     }
 }

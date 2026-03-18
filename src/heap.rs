@@ -39,16 +39,23 @@ where
     let gc_thing = Gc::new(t);
     match perm_heap.get(&gc_thing) {
         Some(gc) => return gc.clone(),
-        None => match ephemeral_heap.get(&gc_thing) {
-            Some(gc) => return gc.clone(),
-            None => (),
-        },
+        None => {
+            if let Some(gc) = ephemeral_heap.get(&gc_thing) {
+                return gc.clone();
+            }
+        }
     }
     match lt {
         Lifetime::Perm => perm_heap.insert(gc_thing.clone()),
         Lifetime::Ephemeral => ephemeral_heap.insert(gc_thing.clone()),
     };
     gc_thing
+}
+
+impl Default for Heap {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Heap {

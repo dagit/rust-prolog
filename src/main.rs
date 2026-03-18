@@ -194,7 +194,7 @@ fn main() {
             println!(r#"Welcome to rust-prolog!"#);
             println!(r#"This prolog interpreter is based on the ML code at the PLZoo:"#);
             println!(r#"  http://andrej.com/plzoo/html/miniprolog.html"#);
-            println!(r#""#);
+            println!();
             println!(r#"Input syntax: "#);
             println!(r#"    ?- query.            Make a query."#);
             println!(r#"    a(t1, ..., tn).      Assert an atomic proposition."#);
@@ -247,7 +247,7 @@ fn main() {
                 let readline = rl.readline(prompt);
                 match readline {
                     Ok(s) => {
-                        if s == "" {
+                        if s.is_empty() {
                             continue;
                         };
                         // First add it to the history

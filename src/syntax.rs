@@ -59,7 +59,7 @@ pub enum ToplevelCmd {
     Use(String),       /* The [$use "filename"] command. */
 }
 
-static NOT: &'static str = "not";
+static NOT: &str = "not";
 
 /* [lookup env x] returns the value of variable instance [x] in
 environment [env]. It returns [Var x] if the variable does not
@@ -140,7 +140,7 @@ fn list_map<A>(list: &Term, f: &dyn Fn(&Term) -> A) -> Vec<A> {
                     let head = &elts[0];
                     let tail = &elts[1];
                     let mut r = vec![f(head)];
-                    let ts = list_map(&tail, f);
+                    let ts = list_map(tail, f);
                     r.extend::<Vec<A>>(ts);
                     r
                 } else if elts.len() == 1 {
@@ -166,7 +166,7 @@ fn nat_to_word(list: &Term) -> u64 {
             "succ" => {
                 if elts.len() == 1 {
                     let arg = &elts[0];
-                    let acc = nat_to_word(&arg);
+                    let acc = nat_to_word(arg);
                     1 + acc
                 } else {
                     1
@@ -194,16 +194,14 @@ pub fn string_of_env(env: &Environment, heap: &mut Heap) -> String {
         .iter()
         .filter(|&(&(_, n), _)| n == 0)
         /* This creates copies and is unnecessary */
-        .map(|(&(ref x, ref y), z)| ((x.clone(), *y), z.clone()))
+        .map(|((x, y), z)| ((x.clone(), *y), z.clone()))
         .collect::<Environment>();
     if toplevels.is_empty() {
         "Yes".to_string()
     } else {
         let res = toplevels
             .iter()
-            .map(|(&(ref x, _), e)| {
-                x.to_string() + " = " + &string_of_term(&subst_term(env, heap, e))
-            })
+            .map(|((x, _), e)| x.to_string() + " = " + &string_of_term(&subst_term(env, heap, e)))
             .collect::<Vec<String>>();
         res.join("\n")
     }

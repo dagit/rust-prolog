@@ -22,7 +22,7 @@ pub fn unify_terms(
     } else {
         match (&*new_t1, &*new_t2) {
             (&Term::Var(ref y), t) | (t, &Term::Var(ref y)) => {
-                if occurs(&y, &t) {
+                if occurs(y, t) {
                     Err(NoUnify)
                 } else {
                     let mut new_env = env.clone();
@@ -30,9 +30,9 @@ pub fn unify_terms(
                     Ok(new_env)
                 }
             }
-            (&Term::App(ref c1, ref ts1), &Term::App(ref c2, ref ts2)) => {
+            (Term::App(c1, ts1), Term::App(c2, ts2)) => {
                 if c1 == c2 {
-                    unify_lists(env, heap, &ts1, &ts2)
+                    unify_lists(env, heap, ts1, ts2)
                 } else {
                     Err(NoUnify)
                 }
@@ -70,8 +70,8 @@ success. It raises [NoUnify] on failure. */
 pub fn unify_atoms(
     env: &Environment,
     heap: &mut Heap,
-    &(ref c1, ref ts1): &Atom,
-    &(ref c2, ref ts2): &Atom,
+    (c1, ts1): &Atom,
+    (c2, ts2): &Atom,
 ) -> Result<Environment, NoUnify> {
     if c1 == c2 {
         unify_lists(env, heap, ts1, ts2)

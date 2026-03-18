@@ -41,7 +41,7 @@ pub struct Lexer<'input> {
 impl<'input> Lexer<'input> {
     pub fn new(text: &'input str) -> Lexer<'input> {
         Lexer {
-            text: text,
+            text,
             line: 1,
             pos: 0,
         }
@@ -128,10 +128,6 @@ impl<'input> Iterator for Lexer<'input> {
     type Item = Result<Spanned<Token<'input>>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.next_token() {
-            /* TODO: fix this span */
-            Some(t) => Some(Ok((0, t, 0))),
-            None => None,
-        }
+        self.next_token().map(|t| Ok((0, t, 0)))
     }
 }
