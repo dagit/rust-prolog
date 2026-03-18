@@ -32,7 +32,7 @@ use crate::syntax::ToplevelCmd::*;
 
 use lalrpop_util::lalrpop_mod;
 
-lalrpop_mod!(pub parser); // lalrpop generated parser
+lalrpop_mod!(#[allow(non_fmt_panics)] pub parser); // lalrpop generated parser
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "prolog", about = "prolog usage")]
