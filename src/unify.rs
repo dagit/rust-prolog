@@ -1,4 +1,4 @@
-use gc::Gc;
+use std::sync::Arc;
 
 use crate::heap::{Heap, Lifetime};
 use crate::syntax::{occurs, subst_term, Atom, Environment, Term};
@@ -49,17 +49,16 @@ returns [NoUnify] on failure or if the lists are not equal length.
 fn unify_lists(
     env: &Environment,
     heap: &mut Heap,
-    lst1: &[Gc<Term>],
-    lst2: &[Gc<Term>],
+    lst1: &[Arc<Term>],
+    lst2: &[Arc<Term>],
 ) -> Result<Environment, NoUnify> {
     if lst1.len() != lst2.len() {
         Err(NoUnify)
     } else {
         lst1.iter()
             .zip(lst2.iter())
-            .fold(Ok(env.clone()), |ne, (l1, l2)| match ne {
-                Ok(new_env) => unify_terms(&new_env, heap, l1, l2),
-                Err(_) => Err(NoUnify),
+            .try_fold(env.clone(), |new_env, (l1, l2)| {
+                unify_terms(&new_env, heap, l1, l2)
             })
     }
 }

@@ -280,24 +280,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
-name = "gc"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bd7fce06a0aabc277bd4605d94ad766841b88ab9c48f45bbef7ee3f14084dd3"
-
-[[package]]
-name = "gc_derive"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb6f1e0d69658b2806f60864bad1a80a9634fc0bc17f7ed55828e3b9c45bf61e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.39",
- "synstructure",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -697,8 +679,6 @@ dependencies = [
  "clap",
  "ctrlc",
  "directories",
- "gc",
- "gc_derive",
  "lalrpop",
  "lalrpop-util",
  "lazy-regex",
@@ -815,18 +795,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "synstructure"
-version = "0.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b834f2d66f734cb897113e34aaff2f1ab4719ca946f9a7358dba8f8064148701"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.39",
- "unicode-xid",
 ]
 
 [[package]]

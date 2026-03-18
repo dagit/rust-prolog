@@ -3,16 +3,15 @@
  */
 /* Abstract syntax */
 
-use gc::Gc;
-use gc_derive::{Finalize, Trace};
 use std::collections::vec_deque::VecDeque;
 use std::collections::HashMap;
 use std::iter::once;
+use std::sync::Arc;
 
 use crate::heap::{Heap, Lifetime};
 
 /* Constants and atoms are strings starting with lower-case letters. */
-pub type Constant = Gc<String>;
+pub type Constant = Arc<String>;
 
 /* Variables are strings starting with upper-case letters, followed by
 a number which indicates an instance of the variable. Thus a
@@ -20,18 +19,18 @@ variable instance is a pair [(x,n)] where [x] is a variable and [n] is an
 integer. When the proof search depth is [n] all variables that we need to use
 are renamed from [(x,0)] to [(x,n)]. This is necessary so that we do not use
 the same variable name in two different applications of the same assertion. */
-pub type Variable = (Gc<String>, i32);
+pub type Variable = (Arc<String>, i32);
 
 /* The datatype of terms */
-#[derive(Hash, Eq, PartialEq, Clone, Debug, Trace, Finalize)]
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub enum Term {
-    Var(Variable),                // Variable `X1`, `Y0`, `Z2`, ...
-    Const(Constant),              // Constant `a`, `b`, `c`, ...
-    App(Constant, Vec<Gc<Term>>), // Compound term `f(t_1, ..., t_n)`
+    Var(Variable),                 // Variable `X1`, `Y0`, `Z2`, ...
+    Const(Constant),               // Constant `a`, `b`, `c`, ...
+    App(Constant, Vec<Arc<Term>>), // Compound term `f(t_1, ..., t_n)`
 }
 
 /* Atomic proposition [p(t_1, ..., t_n)] */
-pub type Atom = (Constant, Vec<Gc<Term>>);
+pub type Atom = (Constant, Vec<Arc<Term>>);
 
 /* A conjunction of atomic propositions [p_1, ..., p_n]. The empty
 list represens [true]. */
@@ -45,7 +44,7 @@ pub type Assertion = (Atom, Clause);
 /* An environment is a list of pairs [(x, e)] where [x] is a variable
 instance and [e] is a term. An environment represents the current values
 of variables. */
-pub type Environment = HashMap<Variable, Gc<Term>>;
+pub type Environment = HashMap<Variable, Arc<Term>>;
 
 /* A database is a list of assertions. It represents the current program. */
 pub type Database = VecDeque<Assertion>;
@@ -64,7 +63,7 @@ static NOT: &str = "not";
 /* [lookup env x] returns the value of variable instance [x] in
 environment [env]. It returns [Var x] if the variable does not
 occur in [env]. */
-fn lookup(env: &Environment, heap: &mut Heap, x: &Variable) -> Gc<Term> {
+fn lookup(env: &Environment, heap: &mut Heap, x: &Variable) -> Arc<Term> {
     match env.get(x) {
         Some(y) => y.clone(),
         None => heap.insert_term(Term::Var(x.clone()), Lifetime::Ephemeral),
@@ -75,7 +74,7 @@ fn lookup(env: &Environment, heap: &mut Heap, x: &Variable) -> Gc<Term> {
 as specified by the associative list [s]. It substitutes
 repeatedly until the terms stop changing, so this is not the
 usual kind of substitution. It is what we need during unification */
-pub fn subst_term(env: &Environment, heap: &mut Heap, t: &Term) -> Gc<Term> {
+pub fn subst_term(env: &Environment, heap: &mut Heap, t: &Term) -> Arc<Term> {
     match *t {
         Term::Var(ref x) => {
             let new_t = lookup(env, heap, x);
@@ -178,7 +177,7 @@ fn nat_to_word(list: &Term) -> u64 {
     }
 }
 
-fn string_of_list(args: &[Gc<Term>]) -> String {
+fn string_of_list(args: &[Arc<Term>]) -> String {
     let mut strings = Vec::with_capacity(args.len());
     for l in args.iter() {
         strings.push(string_of_term(l));
@@ -282,7 +281,7 @@ pub fn generate_contrapositives(heap: &mut Heap, a: &(Atom, Vec<Atom>), lt: Life
 //
 // Note: this also applies double negation elimination (eg., not(not(p)) = p).
 //
-pub fn make_complementary(heap: &mut Heap, t: &Atom, lt: Lifetime) -> Option<Gc<Term>> {
+pub fn make_complementary(heap: &mut Heap, t: &Atom, lt: Lifetime) -> Option<Arc<Term>> {
     match *t {
         // this case bakes in double negation elimnation, so that
         // not(p(X1,...,Xn)) =>
@@ -312,7 +311,7 @@ pub fn make_complementary(heap: &mut Heap, t: &Atom, lt: Lifetime) -> Option<Gc<
     }
 }
 
-pub fn str_to_nat(heap: &mut Heap, input: &str, lt: Lifetime) -> Gc<Term> {
+pub fn str_to_nat(heap: &mut Heap, input: &str, lt: Lifetime) -> Arc<Term> {
     let value: u64 = input.parse::<u64>().unwrap();
     let zero = heap.insert_string("zero".to_string(), Lifetime::Perm);
     let succ = heap.insert_string("succ".to_string(), Lifetime::Perm);
@@ -323,7 +322,7 @@ pub fn str_to_nat(heap: &mut Heap, input: &str, lt: Lifetime) -> Gc<Term> {
     t
 }
 
-pub fn vec_to_list(heap: &mut Heap, elts: Vec<Gc<Term>>, lt: Lifetime) -> Gc<Term> {
+pub fn vec_to_list(heap: &mut Heap, elts: Vec<Arc<Term>>, lt: Lifetime) -> Arc<Term> {
     let nil_str = heap.insert_string("nil".to_string(), Lifetime::Perm);
     let nil = heap.insert_term(Term::Const(nil_str), Lifetime::Perm);
     let cons = heap.insert_string("cons".to_string(), Lifetime::Perm);

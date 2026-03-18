@@ -1,11 +1,11 @@
-use gc::{Gc, Trace};
 use std::collections::HashSet;
 use std::hash::Hash;
+use std::sync::Arc;
 
 use crate::syntax::Term;
 
-type TermSet = HashSet<Gc<Term>>;
-type StringSet = HashSet<Gc<String>>;
+type TermSet = HashSet<Arc<Term>>;
+type StringSet = HashSet<Arc<String>>;
 pub struct Heap {
     // Values defined at the "top level" should
     // live forever.
@@ -26,30 +26,29 @@ pub enum Lifetime {
 }
 
 fn insert_thing<A>(
-    perm_heap: &mut HashSet<Gc<A>>,
-    ephemeral_heap: &mut HashSet<Gc<A>>,
+    perm_heap: &mut HashSet<Arc<A>>,
+    ephemeral_heap: &mut HashSet<Arc<A>>,
     t: A,
     lt: Lifetime,
-) -> Gc<A>
+) -> Arc<A>
 where
-    A: Trace,
-    Gc<A>: Eq,
-    Gc<A>: Hash,
+    Arc<A>: Eq,
+    Arc<A>: Hash,
 {
-    let gc_thing = Gc::new(t);
-    match perm_heap.get(&gc_thing) {
-        Some(gc) => return gc.clone(),
+    let arc_thing = Arc::new(t);
+    match perm_heap.get(&arc_thing) {
+        Some(a) => return a.clone(),
         None => {
-            if let Some(gc) = ephemeral_heap.get(&gc_thing) {
-                return gc.clone();
+            if let Some(a) = ephemeral_heap.get(&arc_thing) {
+                return a.clone();
             }
         }
     }
     match lt {
-        Lifetime::Perm => perm_heap.insert(gc_thing.clone()),
-        Lifetime::Ephemeral => ephemeral_heap.insert(gc_thing.clone()),
+        Lifetime::Perm => perm_heap.insert(arc_thing.clone()),
+        Lifetime::Ephemeral => ephemeral_heap.insert(arc_thing.clone()),
     };
-    gc_thing
+    arc_thing
 }
 
 impl Default for Heap {
@@ -69,11 +68,11 @@ impl Heap {
         }
     }
 
-    pub fn insert_term(&mut self, t: Term, lt: Lifetime) -> Gc<Term> {
+    pub fn insert_term(&mut self, t: Term, lt: Lifetime) -> Arc<Term> {
         insert_thing(&mut self.terms, &mut self.ephemeral_terms, t, lt)
     }
 
-    pub fn insert_string(&mut self, s: String, lt: Lifetime) -> Gc<String> {
+    pub fn insert_string(&mut self, s: String, lt: Lifetime) -> Arc<String> {
         insert_thing(&mut self.strings, &mut self.ephemeral_strings, s, lt)
     }
 
@@ -82,6 +81,5 @@ impl Heap {
         self.ephemeral_strings.clear();
         self.ephemeral_terms.shrink_to_fit();
         self.ephemeral_strings.shrink_to_fit();
-        gc::force_collect();
     }
 }

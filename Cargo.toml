@@ -13,8 +13,6 @@ debug = true
 rustyline   = "*"
 lazy-regex  = "*"
 ctrlc       = "*"
-gc          = "*"
-gc_derive   = "*"
 lalrpop-util = "0.23.1"
 clap        = { version = "*", features = ["derive"] }
 directories = "*"

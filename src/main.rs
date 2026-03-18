@@ -1,4 +1,3 @@
-#![allow(non_local_definitions)] // gc_derive macros trigger this; no upstream fix available
 pub mod heap;
 pub mod lexer;
 pub mod solve;
@@ -17,8 +16,8 @@ use rustyline::Editor;
 use std::sync::LazyLock;
 
 // Option parsing
-use std::path::PathBuf;
 use clap::Parser;
+use std::path::PathBuf;
 
 use directories::ProjectDirs;
 
@@ -228,10 +227,7 @@ fn main() {
                 if let Ok(()) = std::fs::create_dir_all(hist_dir) {
                     let mut hist_path = hist_dir.to_path_buf();
                     hist_path.push("history");
-                    match rl.load_history(&hist_path) {
-                        Err(_) => (), // :(
-                        Ok(()) => (),
-                    }
+                    let _ = rl.load_history(&hist_path); // :(
                 }
             }
 
@@ -282,10 +278,7 @@ fn main() {
                 if let Ok(()) = std::fs::create_dir_all(hist_dir) {
                     let mut hist_path = hist_dir.to_path_buf();
                     hist_path.push("history");
-                    match rl.save_history(&hist_path) {
-                        Err(_) => (), // :(
-                        Ok(()) => (),
-                    }
+                    let _ = rl.save_history(&hist_path); // :(
                 }
             }
         })

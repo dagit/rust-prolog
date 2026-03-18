@@ -1,5 +1,4 @@
 /* The prolog solver. */
-use gc::Gc;
 use std::collections::vec_deque::VecDeque;
 use std::collections::HashMap;
 use std::iter::once;
@@ -53,7 +52,7 @@ enum Error {
 
 /* [renumber_term t n] renumbers all variable instances occurring in
 term [t] so that they have level [n]. */
-fn renumber_term(heap: &mut Heap, n: i32, t: &Term) -> Gc<Term> {
+fn renumber_term(heap: &mut Heap, n: i32, t: &Term) -> Arc<Term> {
     match *t {
         Term::Var((ref x, _)) => heap.insert_term(Term::Var((x.clone(), n)), Lifetime::Ephemeral),
         Term::Const(ref c) => heap.insert_term(Term::Const(c.clone()), Lifetime::Ephemeral),
@@ -62,7 +61,7 @@ fn renumber_term(heap: &mut Heap, n: i32, t: &Term) -> Gc<Term> {
                 c.clone(),
                 ts.iter()
                     .map(|t| renumber_term(heap, n, t))
-                    .collect::<Vec<Gc<Term>>>(),
+                    .collect::<Vec<Arc<Term>>>(),
             );
             heap.insert_term(new_t, Lifetime::Ephemeral)
         }
@@ -76,7 +75,7 @@ fn renumber_atom(heap: &mut Heap, n: i32, (c, ts): &Atom) -> Atom {
         c.clone(),
         ts.iter()
             .map(|t| renumber_term(heap, n, t))
-            .collect::<Vec<Gc<Term>>>(),
+            .collect::<Vec<Arc<Term>>>(),
     )
 }
 
@@ -130,9 +129,11 @@ impl<'a> Solver<'a> {
         when we're done */
         let answer = string_of_env(&self.env, self.heap);
         if answer == "Yes" {
-            Ok(println!("Yes"))
+            println!("Yes");
+            Ok(())
         } else if self.choices.is_empty() {
-            Ok(println!("{}", answer))
+            println!("{}", answer);
+            Ok(())
         } else {
             println!("{} \n", answer);
             let readline = self.rl.readline("more? (y/n) [y] ");
