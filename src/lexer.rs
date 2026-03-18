@@ -1,6 +1,5 @@
 #![allow(clippy::trivial_regex)]
-use regex::Regex;
-use std::sync::LazyLock;
+use lazy_regex::{lazy_regex, Lazy, Regex};
 
 use crate::token::Error;
 use crate::token::Token;
@@ -9,25 +8,25 @@ pub type Spanned<T> = (usize, T, usize);
 
 /* By default Regex looks for substring matches, that's why we prefix each of these
 with ^ so that it always matches from the start of the remaining input */
-static CONST: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-z][_a-zA-Z0-9]*").unwrap());
-static VAR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Z][_a-zA-Z0-9]*").unwrap());
-static NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[0-9][0-9]*").unwrap());
-static COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^#[^\n]*\n").unwrap());
-static NEWLINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\n").unwrap());
-static WS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[[:blank:]]").unwrap());
-static USE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\$use").unwrap());
-static QUIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\$quit").unwrap());
-static GOAL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\?-").unwrap());
-static FROM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^:-").unwrap());
-static TRUE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^true").unwrap());
-static STRING: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^"[^"]*""#).unwrap());
-static LPAREN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\(").unwrap());
-static RPAREN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\)").unwrap());
-static LBRACKET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[").unwrap());
-static RBRACKET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\]").unwrap());
-static COMMA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^,").unwrap());
-static PERIOD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\.").unwrap());
-static PIPE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\|").unwrap());
+static CONST: Lazy<Regex> = lazy_regex!(r"^[a-z][_a-zA-Z0-9]*");
+static VAR: Lazy<Regex> = lazy_regex!(r"^[A-Z][_a-zA-Z0-9]*");
+static NUMBER: Lazy<Regex> = lazy_regex!(r"^[0-9][0-9]*");
+static COMMENT: Lazy<Regex> = lazy_regex!(r"^#[^\n]*\n");
+static NEWLINE: Lazy<Regex> = lazy_regex!(r"^\n");
+static WS: Lazy<Regex> = lazy_regex!(r"^[[:blank:]]");
+static USE: Lazy<Regex> = lazy_regex!(r"^\$use");
+static QUIT: Lazy<Regex> = lazy_regex!(r"^\$quit");
+static GOAL: Lazy<Regex> = lazy_regex!(r"^\?-");
+static FROM: Lazy<Regex> = lazy_regex!(r"^:-");
+static TRUE: Lazy<Regex> = lazy_regex!(r"^true");
+static STRING: Lazy<Regex> = lazy_regex!(r#"^"[^"]*""#);
+static LPAREN: Lazy<Regex> = lazy_regex!(r"^\(");
+static RPAREN: Lazy<Regex> = lazy_regex!(r"^\)");
+static LBRACKET: Lazy<Regex> = lazy_regex!(r"^\[");
+static RBRACKET: Lazy<Regex> = lazy_regex!(r"^\]");
+static COMMA: Lazy<Regex> = lazy_regex!(r"^,");
+static PERIOD: Lazy<Regex> = lazy_regex!(r"^\.");
+static PIPE: Lazy<Regex> = lazy_regex!(r"^\|");
 
 pub struct Lexer<'input> {
     text: &'input str,
