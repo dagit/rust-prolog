@@ -1,36 +1,33 @@
 #![allow(clippy::trivial_regex)]
 use regex::Regex;
+use std::sync::LazyLock;
 
 use crate::token::Error;
 use crate::token::Token;
-
-use lazy_static::lazy_static;
 
 pub type Spanned<T> = (usize, T, usize);
 
 /* By default Regex looks for substring matches, that's why we prefix each of these
 with ^ so that it always matches from the start of the remaining input */
-lazy_static! {
-    static ref CONST: Regex = Regex::new(r"^[a-z][_a-zA-Z0-9]*").unwrap();
-    static ref VAR: Regex = Regex::new(r"^[A-Z][_a-zA-Z0-9]*").unwrap();
-    static ref NUMBER: Regex = Regex::new(r"^[0-9][0-9]*").unwrap();
-    static ref COMMENT: Regex = Regex::new(r"^#[^\n]*\n").unwrap();
-    static ref NEWLINE: Regex = Regex::new(r"^\n").unwrap();
-    static ref WS: Regex = Regex::new(r"^[[:blank:]]").unwrap();
-    static ref USE: Regex = Regex::new(r"^\$use").unwrap();
-    static ref QUIT: Regex = Regex::new(r"^\$quit").unwrap();
-    static ref GOAL: Regex = Regex::new(r"^\?-").unwrap();
-    static ref FROM: Regex = Regex::new(r"^:-").unwrap();
-    static ref TRUE: Regex = Regex::new(r"^true").unwrap();
-    static ref STRING: Regex = Regex::new(r#"^"[^"]*""#).unwrap();
-    static ref LPAREN: Regex = Regex::new(r"^\(").unwrap();
-    static ref RPAREN: Regex = Regex::new(r"^\)").unwrap();
-    static ref LBRACKET: Regex = Regex::new(r"^\[").unwrap();
-    static ref RBRACKET: Regex = Regex::new(r"^\]").unwrap();
-    static ref COMMA: Regex = Regex::new(r"^,").unwrap();
-    static ref PERIOD: Regex = Regex::new(r"^\.").unwrap();
-    static ref PIPE: Regex = Regex::new(r"^\|").unwrap();
-}
+static CONST: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-z][_a-zA-Z0-9]*").unwrap());
+static VAR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Z][_a-zA-Z0-9]*").unwrap());
+static NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[0-9][0-9]*").unwrap());
+static COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^#[^\n]*\n").unwrap());
+static NEWLINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\n").unwrap());
+static WS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[[:blank:]]").unwrap());
+static USE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\$use").unwrap());
+static QUIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\$quit").unwrap());
+static GOAL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\?-").unwrap());
+static FROM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^:-").unwrap());
+static TRUE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^true").unwrap());
+static STRING: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^"[^"]*""#).unwrap());
+static LPAREN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\(").unwrap());
+static RPAREN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\)").unwrap());
+static LBRACKET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[").unwrap());
+static RBRACKET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\]").unwrap());
+static COMMA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^,").unwrap());
+static PERIOD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\.").unwrap());
+static PIPE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\|").unwrap());
 
 pub struct Lexer<'input> {
     text: &'input str,

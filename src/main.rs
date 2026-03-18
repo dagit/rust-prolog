@@ -13,8 +13,8 @@ use std::collections::vec_deque::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use lazy_static::lazy_static;
 use rustyline::Editor;
+use std::sync::LazyLock;
 
 // Option parsing
 use std::path::PathBuf;
@@ -55,9 +55,7 @@ enum Status<E> {
     Err(E),
 }
 
-lazy_static! {
-    static ref PARSER: ToplevelParser = ToplevelParser::new();
-}
+static PARSER: LazyLock<ToplevelParser> = LazyLock::new(ToplevelParser::new);
 
 /* [exec_cmd cmd] executes the toplevel command [cmd].
 Returns Some() when the computation succeeded and None

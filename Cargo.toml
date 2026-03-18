@@ -12,7 +12,6 @@ debug = true
 [dependencies]
 rustyline   = "*"
 regex       = "*"
-lazy_static = "*"
 ctrlc       = "*"
 gc          = "*"
 gc_derive   = "*"
