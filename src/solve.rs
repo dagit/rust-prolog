@@ -1,6 +1,6 @@
 /* The prolog solver. */
+use im::HashMap;
 use std::collections::vec_deque::VecDeque;
-use std::collections::HashMap;
 use std::iter::once;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

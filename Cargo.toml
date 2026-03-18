@@ -15,6 +15,7 @@ lazy-regex  = "*"
 ctrlc       = "*"
 lalrpop-util = "0.23.1"
 clap        = { version = "*", features = ["derive"] }
+im          = "*"
 directories = "*"
 
 [build-dependencies]

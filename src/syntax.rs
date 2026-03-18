@@ -3,8 +3,8 @@
  */
 /* Abstract syntax */
 
+use im::HashMap;
 use std::collections::vec_deque::VecDeque;
-use std::collections::HashMap;
 use std::iter::once;
 use std::sync::Arc;
 
