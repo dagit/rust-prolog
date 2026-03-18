@@ -16,7 +16,7 @@ ctrlc       = "*"
 gc          = "*"
 gc_derive   = "*"
 lalrpop-util = "0.23.1"
-structopt   = "*"
+clap        = { version = "*", features = ["derive"] }
 directories = "*"
 
 [build-dependencies]

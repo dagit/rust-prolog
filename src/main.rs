@@ -18,7 +18,7 @@ use std::sync::LazyLock;
 
 // Option parsing
 use std::path::PathBuf;
-use structopt::StructOpt;
+use clap::Parser;
 
 use directories::ProjectDirs;
 
@@ -34,18 +34,13 @@ use lalrpop_util::lalrpop_mod;
 
 lalrpop_mod!(#[allow(non_fmt_panics)] pub parser); // lalrpop generated parser
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "prolog", about = "prolog usage")]
+#[derive(Debug, Parser)]
+#[command(name = "prolog", about = "prolog usage")]
 struct Opt {
     /// Activate verbose mode (currently does nothing)
-    #[structopt(short = "v", long = "verbose")]
+    #[arg(short = 'v', long = "verbose")]
     verbose: bool,
-    /// Print usage and quit
-    #[structopt(short = "h", long = "help")]
-    #[allow(dead_code)]
-    help: bool,
     /// Optionally read a file on start up
-    #[structopt(parse(from_os_str))]
     input: Option<PathBuf>,
 }
 
@@ -160,7 +155,7 @@ fn main() {
     let interpreter = thread::Builder::new()
         .stack_size(128 * 1024 * 1024)
         .spawn(move || {
-            let opt = Opt::from_args();
+            let opt = Opt::parse();
 
             // This is for handling Ctrl-C. We note the interruption
             // so that we can check for it inside the computations, and
