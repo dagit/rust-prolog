@@ -1,8 +1,8 @@
 #![allow(clippy::trivial_regex)]
 use regex::Regex;
 
-use crate::token::Token;
 use crate::token::Error;
+use crate::token::Token;
 
 use lazy_static::lazy_static;
 
@@ -11,45 +11,50 @@ pub type Spanned<T> = (usize, T, usize);
 /* By default Regex looks for substring matches, that's why we prefix each of these
 with ^ so that it always matches from the start of the remaining input */
 lazy_static! {
-    static ref CONST   : Regex = Regex::new(r"^[a-z][_a-zA-Z0-9]*").unwrap();
-    static ref VAR     : Regex = Regex::new(r"^[A-Z][_a-zA-Z0-9]*").unwrap();
-    static ref NUMBER  : Regex = Regex::new(r"^[0-9][0-9]*"       ).unwrap();
-    static ref COMMENT : Regex = Regex::new(r"^#[^\n]*\n"         ).unwrap();
-    static ref NEWLINE : Regex = Regex::new(r"^\n"                ).unwrap();
-    static ref WS      : Regex = Regex::new(r"^[[:blank:]]"       ).unwrap();
-    static ref USE     : Regex = Regex::new(r"^\$use"             ).unwrap();
-    static ref QUIT    : Regex = Regex::new(r"^\$quit"            ).unwrap();
-    static ref GOAL    : Regex = Regex::new(r"^\?-"               ).unwrap();
-    static ref FROM    : Regex = Regex::new(r"^:-"                ).unwrap();
-    static ref TRUE    : Regex = Regex::new(r"^true"              ).unwrap();
-    static ref STRING  : Regex = Regex::new(r#"^"[^"]*""#         ).unwrap();
-    static ref LPAREN  : Regex = Regex::new(r"^\("                ).unwrap();
-    static ref RPAREN  : Regex = Regex::new(r"^\)"                ).unwrap();
-    static ref LBRACKET: Regex = Regex::new(r"^\["                ).unwrap();
-    static ref RBRACKET: Regex = Regex::new(r"^\]"                ).unwrap();
-    static ref COMMA   : Regex = Regex::new(r"^,"                 ).unwrap();
-    static ref PERIOD  : Regex = Regex::new(r"^\."                ).unwrap();
-    static ref PIPE    : Regex = Regex::new(r"^\|"                ).unwrap();
+    static ref CONST: Regex = Regex::new(r"^[a-z][_a-zA-Z0-9]*").unwrap();
+    static ref VAR: Regex = Regex::new(r"^[A-Z][_a-zA-Z0-9]*").unwrap();
+    static ref NUMBER: Regex = Regex::new(r"^[0-9][0-9]*").unwrap();
+    static ref COMMENT: Regex = Regex::new(r"^#[^\n]*\n").unwrap();
+    static ref NEWLINE: Regex = Regex::new(r"^\n").unwrap();
+    static ref WS: Regex = Regex::new(r"^[[:blank:]]").unwrap();
+    static ref USE: Regex = Regex::new(r"^\$use").unwrap();
+    static ref QUIT: Regex = Regex::new(r"^\$quit").unwrap();
+    static ref GOAL: Regex = Regex::new(r"^\?-").unwrap();
+    static ref FROM: Regex = Regex::new(r"^:-").unwrap();
+    static ref TRUE: Regex = Regex::new(r"^true").unwrap();
+    static ref STRING: Regex = Regex::new(r#"^"[^"]*""#).unwrap();
+    static ref LPAREN: Regex = Regex::new(r"^\(").unwrap();
+    static ref RPAREN: Regex = Regex::new(r"^\)").unwrap();
+    static ref LBRACKET: Regex = Regex::new(r"^\[").unwrap();
+    static ref RBRACKET: Regex = Regex::new(r"^\]").unwrap();
+    static ref COMMA: Regex = Regex::new(r"^,").unwrap();
+    static ref PERIOD: Regex = Regex::new(r"^\.").unwrap();
+    static ref PIPE: Regex = Regex::new(r"^\|").unwrap();
 }
 
 pub struct Lexer<'input> {
-    text    : &'input str,
-    line    : usize,
-    pos     : usize,
+    text: &'input str,
+    line: usize,
+    pos: usize,
 }
 
 impl<'input> Lexer<'input> {
     pub fn new(text: &'input str) -> Lexer<'input> {
         Lexer {
-            text    : text,
-            line    : 1,
-            pos     : 0,
+            text: text,
+            line: 1,
+            pos: 0,
         }
     }
 
-    fn match_and_consume<F>(text: &mut &'input str, pos: &mut usize, re: &Regex, action: F)
-                            -> Option<Token<'input>>
-        where F: Fn(&'input str) -> Token
+    fn match_and_consume<F>(
+        text: &mut &'input str,
+        pos: &mut usize,
+        re: &Regex,
+        action: F,
+    ) -> Option<Token<'input>>
+    where
+        F: Fn(&'input str) -> Token,
     {
         if let Some(mat) = re.find(text) {
             *pos += mat.end();
@@ -68,18 +73,18 @@ impl<'input> Lexer<'input> {
         loop {
             if let Some(mat) = COMMENT.find(self.text) {
                 self.line += 1;
-                self.pos  += mat.end();
+                self.pos += mat.end();
                 self.text = &self.text[mat.end()..];
-                continue
+                continue;
             } else if let Some(mat) = NEWLINE.find(self.text) {
                 self.line += 1;
-                self.pos  += mat.end();
+                self.pos += mat.end();
                 self.text = &self.text[mat.end()..];
-                continue
+                continue;
             } else if let Some(mat) = WS.find(self.text) {
                 self.pos += mat.end();
                 self.text = &self.text[mat.end()..];
-                continue
+                continue;
             }
             break;
         }
@@ -125,8 +130,8 @@ impl<'input> Iterator for Lexer<'input> {
     fn next(&mut self) -> Option<Self::Item> {
         match self.next_token() {
             /* TODO: fix this span */
-            Some(t) => Some(Ok((0,t,0))),
-            None    => None,
+            Some(t) => Some(Ok((0, t, 0))),
+            None => None,
         }
     }
 }

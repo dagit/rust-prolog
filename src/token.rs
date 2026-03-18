@@ -8,7 +8,7 @@ pub enum ErrorCode {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Error {
     pub location: usize,
-    pub code: ErrorCode
+    pub code: ErrorCode,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -31,4 +31,3 @@ pub enum Token<'input> {
     STRING(&'input str),
     EOF,
 }
-
