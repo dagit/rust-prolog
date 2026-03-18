@@ -1,3 +1,4 @@
+#![allow(non_local_definitions)] // gc_derive macros trigger this; no upstream fix available
 pub mod syntax;
 pub mod unify;
 pub mod solve;
@@ -41,6 +42,7 @@ struct Opt {
     verbose: bool,
     /// Print usage and quit
     #[structopt(short = "h", long = "help")]
+    #[allow(dead_code)]
     help: bool,
     /// Optionally read a file on start up
     #[structopt(parse(from_os_str))]

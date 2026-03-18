@@ -1,4 +1,4 @@
-#![cfg_attr(feature = "cargo-clippy", allow(trivial_regex))]
+#![allow(clippy::trivial_regex)]
 use regex::Regex;
 
 use crate::token::Token;
