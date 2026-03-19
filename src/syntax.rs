@@ -336,7 +336,7 @@ pub fn vec_to_list(heap: &mut Heap, elts: Vec<Arc<Term>>, lt: Lifetime) -> Arc<T
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use proptest::prelude::{prop_oneof, Strategy};
+    use proptest::prelude::*;
 
     pub fn arb_variable() -> impl Strategy<Value = Variable> {
         ("[A-Z]", 0..5i32).prop_map(|(s, n)| (Arc::new(s), n))
@@ -372,5 +372,133 @@ pub mod tests {
             arb_constant(),
             proptest::collection::vec(arb_term(depth), 0..4),
         )
+    }
+
+    proptest! {
+        #[test]
+        fn occurs_reflexive(x in arb_variable()) {
+            prop_assert!(occurs(&x, &Term::Var(x.clone())));
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn occurs_not_in_const(x in arb_variable(), c in arb_constant()) {
+            prop_assert!(!occurs(&x, &Term::Const(c)));
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn subst_term_idempotent(t in arb_term(3)) {
+            let mut heap = Heap::new();
+            let env = HashMap::new();
+            let once = subst_term(&env, &mut heap, &t);
+            let twice = subst_term(&env, &mut heap, &once);
+            prop_assert_eq!(once, twice);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn subst_term_identity_empty_env(t in arb_term(3)) {
+            let mut heap = Heap::new();
+            let env = HashMap::new();
+            let result = subst_term(&env, &mut heap, &t);
+            prop_assert_eq!(&*result, &*t);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn make_complementary_double_negation(a in arb_atom(2)) {
+            let mut heap = Heap::new();
+            let comp1 = make_complementary(&mut heap, &a, Lifetime::Ephemeral);
+            prop_assert!(comp1.is_some());
+            let comp1 = comp1.unwrap();
+            // Convert the term back to an atom to complement again
+            let atom2 = match &*comp1 {
+                Term::Const(c) => (c.clone(), vec![]),
+                Term::App(c, ts) => (c.clone(), ts.clone()),
+                Term::Var(_) => return Ok(()), // skip, shouldn't happen
+            };
+            let comp2 = make_complementary(&mut heap, &atom2, Lifetime::Ephemeral);
+            prop_assert!(comp2.is_some());
+            // The double complement should match the original atom as a term
+            let comp2 = comp2.unwrap();
+            let original_as_term = if a.1.is_empty() {
+                heap.insert_term(Term::Const(a.0.clone()), Lifetime::Ephemeral)
+            } else {
+                heap.insert_term(Term::App(a.0.clone(), a.1.clone()), Lifetime::Ephemeral)
+            };
+            prop_assert_eq!(&*comp2, &*original_as_term);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn str_to_nat_round_trip(n in 0u64..100) {
+            let mut heap = Heap::new();
+            let term = str_to_nat(&mut heap, &n.to_string(), Lifetime::Ephemeral);
+            let result = nat_to_word(&term);
+            prop_assert_eq!(result, n);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn vec_to_list_preserves_length(
+            elts in proptest::collection::vec(arb_term(1), 0..6)
+        ) {
+            let mut heap = Heap::new();
+            let list = vec_to_list(&mut heap, elts.clone(), Lifetime::Ephemeral);
+            let mapped: Vec<String> = list_map(&list, &string_of_term);
+            prop_assert_eq!(mapped.len(), elts.len());
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn string_of_term_deterministic(t in arb_term(3)) {
+            let s1 = string_of_term(&t);
+            let s2 = string_of_term(&t);
+            prop_assert_eq!(s1, s2);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn generate_contrapositives_includes_original(a in arb_atom(2)) {
+            let mut heap = Heap::new();
+            let body: Vec<Atom> = vec![];
+            let assertion = (a.clone(), body);
+            let result = generate_contrapositives(&mut heap, &assertion, Lifetime::Ephemeral);
+            // Original rule is always the first entry
+            prop_assert!(!result.is_empty());
+            let (head, _) = result.front().unwrap();
+            prop_assert_eq!(head, &a);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn generate_contrapositives_count(
+            head in arb_atom(1),
+            body in proptest::collection::vec(arb_atom(1), 1..4),
+        ) {
+            let mut heap = Heap::new();
+            let n = body.len();
+            let assertion = (head, body);
+            let result = generate_contrapositives(&mut heap, &assertion, Lifetime::Ephemeral);
+            // 1 original + n contrapositives (one per body atom)
+            prop_assert_eq!(result.len(), 1 + n);
+        }
+    }
+
+    #[test]
+    fn string_of_env_empty_is_yes() {
+        let mut heap = Heap::new();
+        let env = HashMap::new();
+        assert_eq!(string_of_env(&env, &mut heap), "Yes");
     }
 }
