@@ -322,3 +322,76 @@ pub fn solve_toplevel(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::syntax::tests::*;
+    use proptest::prelude::*;
+
+    /// Collect all variable levels from a term
+    fn var_levels(t: &Term) -> Vec<i32> {
+        match *t {
+            Term::Var((_, n)) => vec![n],
+            Term::Const(_) => vec![],
+            Term::App(_, ref ts) => ts.iter().flat_map(|t| var_levels(t)).collect(),
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn renumber_term_sets_level(t in arb_term(3), n in 0..100i32) {
+            let mut heap = Heap::new();
+            let result = renumber_term(&mut heap, n, &t);
+            let levels = var_levels(&result);
+            for level in levels {
+                prop_assert_eq!(level, n);
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn renumber_term_preserves_structure(t in arb_term(3), n in 0..100i32) {
+            let mut heap = Heap::new();
+            let result = renumber_term(&mut heap, n, &t);
+            // Const stays Const, Var stays Var, App stays App with same arity
+            match (&*t, &*result) {
+                (Term::Var(_), Term::Var(_)) => (),
+                (Term::Const(a), Term::Const(b)) => prop_assert_eq!(a, b),
+                (Term::App(c1, ts1), Term::App(c2, ts2)) => {
+                    prop_assert_eq!(c1, c2);
+                    prop_assert_eq!(ts1.len(), ts2.len());
+                }
+                _ => prop_assert!(false, "structure changed: {:?} -> {:?}", *t, *result),
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn renumber_term_idempotent(t in arb_term(3), n in 0..100i32) {
+            let mut heap = Heap::new();
+            let once = renumber_term(&mut heap, n, &t);
+            let twice = renumber_term(&mut heap, n, &once);
+            prop_assert_eq!(&*once, &*twice);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn renumber_atom_preserves_functor(a in arb_atom(2), n in 0..100i32) {
+            let mut heap = Heap::new();
+            let (functor, args) = &a;
+            let (new_functor, new_args) = renumber_atom(&mut heap, n, &a);
+            prop_assert_eq!(functor, &new_functor);
+            prop_assert_eq!(args.len(), new_args.len());
+            // All variables in the result should have level n
+            for arg in &new_args {
+                for level in var_levels(arg) {
+                    prop_assert_eq!(level, n);
+                }
+            }
+        }
+    }
+}
