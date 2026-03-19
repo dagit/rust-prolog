@@ -83,126 +83,6 @@ fn renumber_atom(heap: &mut Heap, n: i32, (c, ts): &Atom) -> Atom {
     )
 }
 
-struct Solver<'a> {
-    database: &'a Database,
-    choices: Vec<Choice>,
-    env: Environment,
-    heap: &'a mut Heap,
-    interrupted: &'a Arc<AtomicBool>,
-    // Maximum depth for the current iteration.
-    max_depth: i32,
-    // The maximum seen depth in the current iteration.
-    // Tracking this allows us to exit iterative deepening when
-    // we've visited the entire search space but haven't yet hit
-    // the search depth limit.
-    cur_depth: i32,
-    // Whether we've already started solving (for Iterator resumption).
-    started: bool,
-    // The initial goals to solve.
-    goals: FramableClause,
-}
-
-impl<'a> Solver<'a> {
-    /* [continue_search] looks for other answers. It uses the choices list of
-    choices. It continues the search at the first choice in the list.
-    */
-    fn continue_search(&mut self) -> SolveResult {
-        if self.choices.is_empty() && self.cur_depth < self.max_depth {
-            SolveResult::NoSolution
-        } else if self.choices.is_empty() {
-            SolveResult::DepthExhausted
-        } else {
-            let (asrl, env, gs, n) = self.choices.pop().expect(concat!(file!(), ":", line!()));
-            self.env = env;
-            self.solve(&asrl, &gs, n)
-        }
-    }
-
-    /* [solve asrl c n] looks for the proof of clause [c]. Other
-    arguments are:
-
-    [asrl] is the list of assertions that are used to reduce [c] to subgoals,
-
-    [n] is the search depth, which is increased at each level of search.
-
-    Returns a SolveResult indicating whether a solution was found,
-    no solution exists, or the depth limit was exhausted.
-     */
-    fn solve(&mut self, asrl: &Database, c: &FramableClause, n: i32) -> SolveResult {
-        self.cur_depth = std::cmp::max(self.cur_depth, n);
-
-        // All atoms are solved, we found a solution
-        if c.is_empty() {
-            /* Due to the way iterative deepening works, we only need to
-             * yield an answer the first time we find it. That is, at the
-             * first depth we see it. */
-            if n < self.max_depth {
-                return self.continue_search();
-            }
-            return SolveResult::Solution(self.env.clone());
-        }
-        // user requested we abort
-        if self.interrupted.load(Ordering::SeqCst) {
-            return SolveResult::NoSolution;
-        }
-        // abort this branch, and backtrack according to iterated deepening search
-        if n > self.max_depth {
-            return self.continue_search();
-        }
-
-        // Now we're ready to do one step of solving the goal
-        let mut new_c = c.to_owned();
-        // this pop cannot fail because we made sure that c is non-empty
-        match new_c.pop_front().unwrap() {
-            /* if the left most atom is framed we remove it and call solve with essentially the
-             * same state */
-            (_a, FrameStatus::Framed) => self.solve(asrl, &new_c, n),
-            (a, FrameStatus::Unframed) => {
-                if is_complementary(self.heap, &a, &new_c) {
-                    return self.solve(asrl, &new_c, n);
-                }
-                match reduce_atom(&self.env, self.heap, n, &a, asrl) {
-                    None =>
-                    /* This clause cannot be solved, look for other solutions */
-                    {
-                        self.continue_search()
-                    }
-                    Some((new_asrl, new_env, d)) => {
-                        /* The atom was reduced to subgoals [d]. Continue
-                        search with the subgoals added to the list of goals. */
-                        self.choices
-                            .push((new_asrl, self.env.clone(), c.to_owned(), n));
-                        self.env = new_env;
-                        let d = d
-                            .into_iter()
-                            .chain(once((a, FrameStatus::Framed)))
-                            .chain(new_c)
-                            .collect::<FramableClause>();
-                        self.solve(self.database, &d, n + 1)
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl<'a> Iterator for Solver<'a> {
-    type Item = Environment;
-
-    fn next(&mut self) -> Option<Environment> {
-        let result = if !self.started {
-            self.started = true;
-            self.solve(self.database, &self.goals.clone(), 1)
-        } else {
-            self.continue_search()
-        };
-        match result {
-            SolveResult::Solution(env) => Some(env),
-            SolveResult::NoSolution | SolveResult::DepthExhausted => None,
-        }
-    }
-}
-
 /// Outcome of iterative deepening search.
 enum SearchOutcome {
     /// A solution was found (there may be more via `next()`).
@@ -213,9 +93,8 @@ enum SearchOutcome {
     SearchDepthExhausted,
 }
 
-/// An iterator that performs iterative deepening over the `Solver`.
-/// Each call to `next()` yields the next solution across all depth
-/// levels, transparently incrementing depth when a level is exhausted.
+/// Iterative-deepening search iterator. Yields solutions on demand,
+/// transparently incrementing depth when a level is exhausted.
 struct Search<'a> {
     database: &'a Database,
     heap: &'a mut Heap,
@@ -223,10 +102,13 @@ struct Search<'a> {
     choices: Vec<Choice>,
     env: Environment,
     goals: FramableClause,
+    /// The overall maximum depth limit.
     max_depth: i32,
+    /// The current iterative-deepening depth.
     depth: i32,
-    // State for the current depth's Solver.
+    /// The deepest level reached in the current depth iteration.
     cur_depth: i32,
+    /// Whether we've started solving at the current depth.
     started: bool,
     done: bool,
 }
@@ -262,35 +144,130 @@ impl<'a> Search<'a> {
         self.started = false;
     }
 
-    /// Run one step of the single-depth solver, returning a SolveResult.
-    fn solver_next(&mut self) -> SolveResult {
-        let mut solver = Solver {
-            database: self.database,
-            choices: std::mem::take(&mut self.choices),
-            env: std::mem::take(&mut self.env),
-            heap: self.heap,
-            interrupted: self.interrupted,
-            max_depth: self.depth,
-            cur_depth: self.cur_depth,
-            started: self.started,
-            goals: self.goals.clone(),
-        };
-        let result = solver.next();
-        // Copy state back
-        self.choices = solver.choices;
-        self.env = solver.env;
-        self.cur_depth = solver.cur_depth;
-        self.started = solver.started;
-        match result {
-            Some(env) => SolveResult::Solution(env),
-            None => {
-                if self.cur_depth < self.depth {
-                    SolveResult::NoSolution
-                } else {
-                    SolveResult::DepthExhausted
+    /* Iterative solver for a single depth level. Replaces the former
+    mutually-recursive Solver::solve/continue_search pair. Every former
+    recursive call was a tail call, so each maps to updating (asrl, c, n)
+    and continuing the loop. Backtracking pops from self.choices. */
+    fn solve_step(&mut self, mut asrl: Database, mut c: FramableClause, mut n: i32) -> SolveResult {
+        loop {
+            self.cur_depth = std::cmp::max(self.cur_depth, n);
+
+            // All atoms are solved, we found a solution
+            if c.is_empty() {
+                /* Due to the way iterative deepening works, we only need to
+                 * yield an answer the first time we find it. That is, at the
+                 * first depth we see it. */
+                if n < self.depth {
+                    // Duplicate at shallower depth — backtrack
+                    match self.choices.pop() {
+                        Some((ba, env, bc, bn)) => {
+                            self.env = env;
+                            asrl = ba;
+                            c = bc;
+                            n = bn;
+                            continue;
+                        }
+                        None if self.cur_depth < self.depth => return SolveResult::NoSolution,
+                        None => return SolveResult::DepthExhausted,
+                    }
+                }
+                return SolveResult::Solution(self.env.clone());
+            }
+
+            // User requested abort
+            if self.interrupted.load(Ordering::SeqCst) {
+                return SolveResult::NoSolution;
+            }
+
+            // Depth exceeded — backtrack
+            if n > self.depth {
+                match self.choices.pop() {
+                    Some((ba, env, bc, bn)) => {
+                        self.env = env;
+                        asrl = ba;
+                        c = bc;
+                        n = bn;
+                        continue;
+                    }
+                    None if self.cur_depth < self.depth => return SolveResult::NoSolution,
+                    None => return SolveResult::DepthExhausted,
+                }
+            }
+
+            // Pop the leftmost atom from the clause
+            let (atom, status) = c.pop_front().unwrap();
+
+            match status {
+                // Framed atoms are assumptions — skip them
+                FrameStatus::Framed => continue,
+
+                FrameStatus::Unframed => {
+                    // Check for complementary match among framed atoms
+                    if is_complementary(self.heap, &atom, &c) {
+                        continue;
+                    }
+
+                    match reduce_atom(&self.env, self.heap, n, &atom, &asrl) {
+                        None => {
+                            // No matching assertion — backtrack
+                            match self.choices.pop() {
+                                Some((ba, env, bc, bn)) => {
+                                    self.env = env;
+                                    asrl = ba;
+                                    c = bc;
+                                    n = bn;
+                                    continue;
+                                }
+                                None if self.cur_depth < self.depth => {
+                                    return SolveResult::NoSolution
+                                }
+                                None => return SolveResult::DepthExhausted,
+                            }
+                        }
+                        Some((new_asrl, new_env, subgoals)) => {
+                            // Save choice point. Reconstruct the full clause
+                            // (with the atom we just popped) for backtracking.
+                            let mut saved_c = c.clone();
+                            saved_c.push_front((atom.clone(), FrameStatus::Unframed));
+                            self.choices.push((new_asrl, self.env.clone(), saved_c, n));
+
+                            // Set up state for the next iteration
+                            self.env = new_env;
+                            c = subgoals
+                                .into_iter()
+                                .chain(once((atom, FrameStatus::Framed)))
+                                .chain(c)
+                                .collect();
+                            asrl = self.database.clone();
+                            n += 1;
+                        }
+                    }
                 }
             }
         }
+    }
+
+    /// Advance the search by one solution at the current depth level.
+    fn solver_next(&mut self) -> SolveResult {
+        let (asrl, c, n) = if !self.started {
+            self.started = true;
+            (self.database.clone(), self.goals.clone(), 1)
+        } else {
+            match self.choices.pop() {
+                Some((asrl, env, c, n)) => {
+                    self.env = env;
+                    (asrl, c, n)
+                }
+                None => {
+                    return if self.cur_depth < self.depth {
+                        SolveResult::NoSolution
+                    } else {
+                        SolveResult::DepthExhausted
+                    };
+                }
+            }
+        };
+        self.solve_step(asrl, c, n)
     }
 
     /// Like `next()` but distinguishes "no more solutions" from
@@ -369,24 +346,23 @@ fn reduce_atom(
     a: &Atom,
     local_asrl: &Database,
 ) -> Option<(Database, Environment, FramableClause)> {
-    if local_asrl.is_empty() {
-        None
-    } else {
-        let mut asrl2 = local_asrl.to_owned();
-        let (b, lst) = asrl2.pop_front().expect(concat!(file!(), ":", line!()));
+    let mut remaining = local_asrl.clone();
+    while let Some((b, lst)) = remaining.pop_front() {
         let new_b = renumber_atom(heap, n, &b);
-        let try_env = unify_atoms(env, heap, a, &new_b);
-        match try_env {
-            Err(_) => reduce_atom(env, heap, n, a, &asrl2),
-            Ok(new_env) => Some((
-                asrl2,
-                new_env,
-                lst.iter()
-                    .map(|l| (renumber_atom(heap, n, l), FrameStatus::Unframed))
-                    .collect::<FramableClause>(),
-            )),
+        match unify_atoms(env, heap, a, &new_b) {
+            Err(_) => continue,
+            Ok(new_env) => {
+                return Some((
+                    remaining,
+                    new_env,
+                    lst.iter()
+                        .map(|l| (renumber_atom(heap, n, l), FrameStatus::Unframed))
+                        .collect::<FramableClause>(),
+                ));
+            }
         }
     }
+    None
 }
 
 /* [solve_toplevel c] searches for the proof of clause [c] using
