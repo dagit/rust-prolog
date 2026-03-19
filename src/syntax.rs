@@ -332,3 +332,45 @@ pub fn vec_to_list(heap: &mut Heap, elts: Vec<Arc<Term>>, lt: Lifetime) -> Arc<T
     }
     t
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use proptest::prelude::{prop_oneof, Strategy};
+
+    pub fn arb_variable() -> impl Strategy<Value = Variable> {
+        ("[A-Z]", 0..5i32).prop_map(|(s, n)| (Arc::new(s), n))
+    }
+
+    pub fn arb_constant() -> impl Strategy<Value = Constant> {
+        "[a-z]".prop_map(Arc::new)
+    }
+
+    pub fn arb_term(depth: u32) -> impl Strategy<Value = Arc<Term>> {
+        if depth == 0 {
+            prop_oneof![
+                arb_variable().prop_map(|v| Arc::new(Term::Var(v))),
+                arb_constant().prop_map(|c| Arc::new(Term::Const(c))),
+            ]
+            .boxed()
+        } else {
+            prop_oneof![
+                arb_variable().prop_map(|v| Arc::new(Term::Var(v))),
+                arb_constant().prop_map(|c| Arc::new(Term::Const(c))),
+                (
+                    arb_constant(),
+                    proptest::collection::vec(arb_term(depth - 1), 1..4)
+                )
+                    .prop_map(|(c, ts)| Arc::new(Term::App(c, ts))),
+            ]
+            .boxed()
+        }
+    }
+
+    pub fn arb_atom(depth: u32) -> impl Strategy<Value = Atom> {
+        (
+            arb_constant(),
+            proptest::collection::vec(arb_term(depth), 0..4),
+        )
+    }
+}

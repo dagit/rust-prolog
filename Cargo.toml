@@ -17,6 +17,7 @@ lalrpop-util = "0.23.1"
 clap        = { version = "*", features = ["derive"] }
 im          = "*"
 directories = "*"
+proptest = "1.10.0"
 
 [build-dependencies]
 lalrpop = "0.23.1"

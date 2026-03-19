@@ -78,3 +78,19 @@ pub fn unify_atoms(
         Err(NoUnify)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::syntax::tests::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn unify_reflexive(t in arb_term(3)) {
+            let mut heap = Heap::new();
+            let env = im::HashMap::new();
+            prop_assert!(unify_terms(&env, &mut heap, &t, &t).is_ok());
+        }
+    }
+}
