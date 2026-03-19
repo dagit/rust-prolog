@@ -106,4 +106,16 @@ mod tests {
             prop_assert!(unify_terms(&env, &mut heap2, &t2, &t1).is_ok());
         }
     }
+
+    proptest! {
+        #[test]
+        fn occurs_check(x in arb_variable(), t in arb_term(3)) {
+            let mut heap = Heap::new();
+            let env = im::HashMap::new();
+            let c = Arc::new("f".to_owned());
+            let var_x = Arc::new(Term::Var(x.clone()));
+            let t_with_x = Arc::new(Term::App(c, vec![var_x, t]));
+            prop_assert!(unify_terms(&env, &mut heap, &Term::Var(x), &t_with_x).is_err());
+        }
+    }
 }
