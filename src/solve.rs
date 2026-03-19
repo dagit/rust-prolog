@@ -14,6 +14,12 @@ use crate::unify::{unify_atoms, unify_terms};
 use rustyline::history::DefaultHistory;
 use rustyline::Editor;
 
+enum SolveResult {
+    Solution(Environment),
+    NoSolution,
+    DepthExhausted,
+}
+
 /* A value of type [choice] represents a choice point in the proof
 search at which we may continue searching for another solution. It
 is a tuple [(asrl, enn, c, n)] where [asrl] for other solutions of
@@ -44,11 +50,9 @@ pub fn assert(database: &mut Database, heap: &mut Heap, a: &Assertion) {
     database.append(&mut contrapositives);
 }
 
-/* Exception [NoSolution] is raised when a goal cannot be proved. */
-enum Error {
-    NoSolution,
-    DepthExhausted,
-}
+/* The cur_depth field tracks whether we've explored the full search
+space at the current depth limit, enabling iterative deepening to
+know when to stop. */
 
 /* [renumber_term t n] renumbers all variable instances occurring in
 term [t] so that they have level [n]. */
@@ -85,7 +89,6 @@ struct Solver<'a> {
     env: Environment,
     heap: &'a mut Heap,
     interrupted: &'a Arc<AtomicBool>,
-    rl: &'a mut Editor<(), DefaultHistory>,
     // Maximum depth for the current iteration.
     max_depth: i32,
     // The maximum seen depth in the current iteration.
@@ -93,72 +96,21 @@ struct Solver<'a> {
     // we've visited the entire search space but haven't yet hit
     // the search depth limit.
     cur_depth: i32,
+    // Whether we've already started solving (for Iterator resumption).
+    started: bool,
+    // The initial goals to solve.
+    goals: FramableClause,
 }
 
 impl<'a> Solver<'a> {
-    fn new(
-        db: &'a Database,
-        heap: &'a mut Heap,
-        rl: &'a mut Editor<(), DefaultHistory>,
-        interrupted: &'a Arc<AtomicBool>,
-        max_depth: i32,
-    ) -> Self {
-        Solver {
-            database: db,
-            choices: vec![],
-            env: HashMap::new(),
-            heap,
-            interrupted,
-            rl,
-            max_depth,
-            cur_depth: 0,
-        }
-    }
-
-    /* [display_solution] displays the solution of a goal encoded
-    by [env] and the current search depth. It then gives the user the option to search for other
-    solutions, as described by the list of choice points, or to abort the current proof search. */
-    fn display_solution(&mut self, n: i32) -> Result<(), Error> {
-        /* Due to the way iterative deepening works, we only need to print an answer the first time
-         * we find it. That is, at the first depth we see it.
-         */
-        if n < self.max_depth {
-            return self.continue_search();
-        }
-        /* This is probably the least efficient way to figure out
-        when we're done */
-        let answer = string_of_env(&self.env, self.heap);
-        if answer == "Yes" {
-            println!("Yes");
-            Ok(())
-        } else if self.choices.is_empty() {
-            println!("{}", answer);
-            Ok(())
-        } else {
-            println!("{} \n", answer);
-            let readline = self.rl.readline("more? (y/n) [y] ");
-            match readline {
-                Ok(s) => {
-                    let input = s.trim();
-                    if input == "y" || input == "yes" || input.is_empty() {
-                        self.continue_search()
-                    } else {
-                        Err(Error::NoSolution)
-                    }
-                }
-                _ => Err(Error::NoSolution),
-            }
-        }
-    }
-
-    /* [continue_search a] looks for other answers. It uses the choices list of
+    /* [continue_search] looks for other answers. It uses the choices list of
     choices. It continues the search at the first choice in the list.
     */
-    fn continue_search(&mut self) -> Result<(), Error> {
+    fn continue_search(&mut self) -> SolveResult {
         if self.choices.is_empty() && self.cur_depth < self.max_depth {
-            Err(Error::NoSolution)
+            SolveResult::NoSolution
         } else if self.choices.is_empty() {
-            Err(Error::DepthExhausted)
+            SolveResult::DepthExhausted
         } else {
             let (asrl, env, gs, n) = self.choices.pop().expect(concat!(file!(), ":", line!()));
             self.env = env;
@@ -173,23 +125,25 @@ impl<'a> Solver<'a> {
 
     [n] is the search depth, which is increased at each level of search.
 
-    When a solution is found, it is printed on the screen. The user
-    then decides whether other solutions should be searched for.
+    Returns a SolveResult indicating whether a solution was found,
+    no solution exists, or the depth limit was exhausted.
      */
-    fn solve(&mut self, asrl: &Database, c: &FramableClause, n: i32) -> Result<(), Error> {
-        // TODO: make these println into debugging diagnostics
-        //println!("c = {}", string_of_clauses(c));
-
+    fn solve(&mut self, asrl: &Database, c: &FramableClause, n: i32) -> SolveResult {
         self.cur_depth = std::cmp::max(self.cur_depth, n);
-        //First check all of our early exit conditions
 
         // All atoms are solved, we found a solution
         if c.is_empty() {
-            return self.display_solution(n);
+            /* Due to the way iterative deepening works, we only need to
+             * yield an answer the first time we find it. That is, at the
+             * first depth we see it. */
+            if n < self.max_depth {
+                return self.continue_search();
+            }
+            return SolveResult::Solution(self.env.clone());
         }
         // user requested we abort
         if self.interrupted.load(Ordering::SeqCst) {
-            return Err(Error::NoSolution);
+            return SolveResult::NoSolution;
         }
         // abort this branch, and backtrack according to iterated deepening search
         if n > self.max_depth {
@@ -202,14 +156,9 @@ impl<'a> Solver<'a> {
         match new_c.pop_front().unwrap() {
             /* if the left most atom is framed we remove it and call solve with essentially the
              * same state */
-            (_a, FrameStatus::Framed) => {
-                //println!("removing framed: {}", string_of_clauses(&[(_a,FrameStatus::Framed)]));
-                self.solve(asrl, &new_c, n)
-            }
+            (_a, FrameStatus::Framed) => self.solve(asrl, &new_c, n),
             (a, FrameStatus::Unframed) => {
-                //println!("a = {}", string_of_clauses(&[(a.to_owned(),FrameStatus::Unframed)]));
                 if is_complementary(self.heap, &a, &new_c) {
-                    //println!("found complementary: {}", string_of_clauses(&[(a,FrameStatus::Unframed)]));
                     return self.solve(asrl, &new_c, n);
                 }
                 match reduce_atom(&self.env, self.heap, n, &a, asrl) {
@@ -221,12 +170,9 @@ impl<'a> Solver<'a> {
                     Some((new_asrl, new_env, d)) => {
                         /* The atom was reduced to subgoals [d]. Continue
                         search with the subgoals added to the list of goals. */
-                        /* Add a new choice */
-                        //let mut ch = self.choices.to_owned();
                         self.choices
                             .push((new_asrl, self.env.clone(), c.to_owned(), n));
                         self.env = new_env;
-                        //println!("inserting: {} and {}", string_of_clauses(&new_c), string_of_clauses(&d));
                         let d = d
                             .into_iter()
                             .chain(once((a, FrameStatus::Framed)))
@@ -236,6 +182,155 @@ impl<'a> Solver<'a> {
                     }
                 }
             }
+        }
+    }
+}
+
+impl<'a> Iterator for Solver<'a> {
+    type Item = Environment;
+
+    fn next(&mut self) -> Option<Environment> {
+        let result = if !self.started {
+            self.started = true;
+            self.solve(self.database, &self.goals.clone(), 1)
+        } else {
+            self.continue_search()
+        };
+        match result {
+            SolveResult::Solution(env) => Some(env),
+            SolveResult::NoSolution | SolveResult::DepthExhausted => None,
+        }
+    }
+}
+
+/// Outcome of iterative deepening search.
+enum SearchOutcome {
+    /// A solution was found (there may be more via `next()`).
+    Solution(Environment),
+    /// The entire search space was explored with no solutions.
+    NoSolution,
+    /// The maximum iterative deepening depth was reached.
+    SearchDepthExhausted,
+}
+
+/// An iterator that performs iterative deepening over the `Solver`.
+/// Each call to `next()` yields the next solution across all depth
+/// levels, transparently incrementing depth when a level is exhausted.
+struct Search<'a> {
+    database: &'a Database,
+    heap: &'a mut Heap,
+    interrupted: &'a Arc<AtomicBool>,
+    choices: Vec<Choice>,
+    env: Environment,
+    goals: FramableClause,
+    max_depth: i32,
+    depth: i32,
+    // State for the current depth's Solver.
+    cur_depth: i32,
+    started: bool,
+    done: bool,
+}
+
+impl<'a> Search<'a> {
+    fn new(
+        db: &'a Database,
+        heap: &'a mut Heap,
+        interrupted: &'a Arc<AtomicBool>,
+        goals: FramableClause,
+        max_depth: i32,
+    ) -> Self {
+        Search {
+            database: db,
+            heap,
+            interrupted,
+            choices: vec![],
+            env: HashMap::new(),
+            goals,
+            max_depth,
+            depth: 0,
+            cur_depth: 0,
+            started: false,
+            done: false,
+        }
+    }
+
+    /// Reset solver state for a new depth iteration.
+    fn reset_for_depth(&mut self) {
+        self.choices.clear();
+        self.env = HashMap::new();
+        self.cur_depth = 0;
+        self.started = false;
+    }
+
+    /// Run one step of the single-depth solver, returning a SolveResult.
+    fn solver_next(&mut self) -> SolveResult {
+        let mut solver = Solver {
+            database: self.database,
+            choices: std::mem::take(&mut self.choices),
+            env: std::mem::take(&mut self.env),
+            heap: self.heap,
+            interrupted: self.interrupted,
+            max_depth: self.depth,
+            cur_depth: self.cur_depth,
+            started: self.started,
+            goals: self.goals.clone(),
+        };
+        let result = solver.next();
+        // Copy state back
+        self.choices = solver.choices;
+        self.env = solver.env;
+        self.cur_depth = solver.cur_depth;
+        self.started = solver.started;
+        match result {
+            Some(env) => SolveResult::Solution(env),
+            None => {
+                if self.cur_depth < self.depth {
+                    SolveResult::NoSolution
+                } else {
+                    SolveResult::DepthExhausted
+                }
+            }
+        }
+    }
+
+    /// Like `next()` but distinguishes "no more solutions" from
+    /// "search depth exhausted".
+    fn next_outcome(&mut self) -> SearchOutcome {
+        loop {
+            if self.done {
+                return SearchOutcome::NoSolution;
+            }
+            match self.solver_next() {
+                SolveResult::Solution(env) => return SearchOutcome::Solution(env),
+                SolveResult::NoSolution => {
+                    self.done = true;
+                    return SearchOutcome::NoSolution;
+                }
+                SolveResult::DepthExhausted => {
+                    self.depth += 1;
+                    if self.depth >= self.max_depth {
+                        self.done = true;
+                        return SearchOutcome::SearchDepthExhausted;
+                    }
+                    self.reset_for_depth();
+                }
+            }
+        }
+    }
+
+    /// Whether there are still remaining choice points to explore.
+    fn has_more_choices(&self) -> bool {
+        !self.choices.is_empty()
+    }
+}
+
+impl<'a> Iterator for Search<'a> {
+    type Item = Environment;
+
+    fn next(&mut self) -> Option<Environment> {
+        match self.next_outcome() {
+            SearchOutcome::Solution(env) => Some(env),
+            SearchOutcome::NoSolution | SearchOutcome::SearchDepthExhausted => None,
         }
     }
 }
@@ -305,20 +400,43 @@ pub fn solve_toplevel(
     interrupted: &Arc<AtomicBool>,
     max_depth: i32,
 ) {
-    let mut depth = 0;
-    let c = c
+    let goals = c
         .iter()
         .map(|x| (x.to_owned(), FrameStatus::Unframed))
         .collect::<FramableClause>();
+    let mut search = Search::new(db, heap, interrupted, goals, max_depth);
     loop {
-        if depth >= max_depth {
-            return println!("Search depth exhausted");
-        }
-        let mut s = Solver::new(db, heap, rl, interrupted, depth);
-        match s.solve(db, &c, 1) {
-            Err(Error::DepthExhausted) => depth += 1,
-            Err(Error::NoSolution) => return println!("No"),
-            Ok(()) => return,
+        match search.next_outcome() {
+            SearchOutcome::Solution(env) => {
+                let answer = string_of_env(&env, search.heap);
+                if answer == "Yes" {
+                    println!("Yes");
+                    return;
+                }
+                println!("{}", answer);
+                if !search.has_more_choices() {
+                    return;
+                }
+                println!();
+                let readline = rl.readline("more? (y/n) [y] ");
+                match readline {
+                    Ok(s) => {
+                        let input = s.trim();
+                        if input != "y" && input != "yes" && !input.is_empty() {
+                            return;
+                        }
+                    }
+                    _ => return,
+                }
+            }
+            SearchOutcome::NoSolution => {
+                println!("No");
+                return;
+            }
+            SearchOutcome::SearchDepthExhausted => {
+                println!("Search depth exhausted");
+                return;
+            }
         }
     }
 }
@@ -393,5 +511,159 @@ mod tests {
                 }
             }
         }
+    }
+
+    // Helper to build a simple atom like "human(socrates)"
+    fn make_atom(name: &str, args: Vec<Arc<Term>>) -> Atom {
+        (Arc::new(name.to_owned()), args)
+    }
+
+    fn make_const(heap: &mut Heap, name: &str) -> Arc<Term> {
+        heap.insert_term(Term::Const(Arc::new(name.to_owned())), Lifetime::Perm)
+    }
+
+    fn make_var(heap: &mut Heap, name: &str, level: i32) -> Arc<Term> {
+        heap.insert_term(
+            Term::Var((Arc::new(name.to_owned()), level)),
+            Lifetime::Perm,
+        )
+    }
+
+    fn make_interrupted() -> Arc<AtomicBool> {
+        Arc::new(AtomicBool::new(false))
+    }
+
+    fn make_goals(atoms: Vec<Atom>) -> FramableClause {
+        atoms
+            .into_iter()
+            .map(|a| (a, FrameStatus::Unframed))
+            .collect()
+    }
+
+    fn make_search<'a>(
+        db: &'a Database,
+        heap: &'a mut Heap,
+        interrupted: &'a Arc<AtomicBool>,
+        goals: FramableClause,
+    ) -> Search<'a> {
+        Search::new(db, heap, interrupted, goals, 100)
+    }
+
+    #[test]
+    fn solve_simple_fact() {
+        // Assert: human(socrates).
+        // Query: ?- human(socrates).
+        let mut heap = Heap::new();
+        let mut db: Database = VecDeque::new();
+        let socrates = make_const(&mut heap, "socrates");
+        let fact = make_atom("human", vec![socrates.clone()]);
+        assert(&mut db, &mut heap, &(fact.clone(), vec![]));
+
+        let interrupted = make_interrupted();
+        let solutions: Vec<_> =
+            make_search(&db, &mut heap, &interrupted, make_goals(vec![fact])).collect();
+        assert_eq!(solutions.len(), 1);
+    }
+
+    #[test]
+    fn solve_no_match() {
+        // Assert: human(socrates).
+        // Query: ?- human(plato).
+        let mut heap = Heap::new();
+        let mut db: Database = VecDeque::new();
+        let socrates = make_const(&mut heap, "socrates");
+        let plato = make_const(&mut heap, "plato");
+        let fact = make_atom("human", vec![socrates]);
+        assert(&mut db, &mut heap, &(fact, vec![]));
+
+        let query = make_atom("human", vec![plato]);
+        let interrupted = make_interrupted();
+        let solutions: Vec<_> =
+            make_search(&db, &mut heap, &interrupted, make_goals(vec![query])).collect();
+        assert!(solutions.is_empty());
+    }
+
+    #[test]
+    fn solve_variable_binding() {
+        // Assert: human(socrates). human(plato).
+        // Query: ?- human(X).
+        // Should yield two solutions.
+        let mut heap = Heap::new();
+        let mut db: Database = VecDeque::new();
+        let socrates = make_const(&mut heap, "socrates");
+        let plato = make_const(&mut heap, "plato");
+        assert(
+            &mut db,
+            &mut heap,
+            &(make_atom("human", vec![socrates]), vec![]),
+        );
+        assert(
+            &mut db,
+            &mut heap,
+            &(make_atom("human", vec![plato]), vec![]),
+        );
+
+        let x = make_var(&mut heap, "X", 0);
+        let query = make_atom("human", vec![x]);
+        let interrupted = make_interrupted();
+        let solutions: Vec<_> =
+            make_search(&db, &mut heap, &interrupted, make_goals(vec![query])).collect();
+        assert_eq!(solutions.len(), 2);
+    }
+
+    #[test]
+    fn solve_with_rule() {
+        // Assert: human(socrates). mortal(X) :- human(X).
+        // Query: ?- mortal(socrates).
+        let mut heap = Heap::new();
+        let mut db: Database = VecDeque::new();
+        let socrates = make_const(&mut heap, "socrates");
+        assert(
+            &mut db,
+            &mut heap,
+            &(make_atom("human", vec![socrates.clone()]), vec![]),
+        );
+
+        let x = make_var(&mut heap, "X", 0);
+        let rule_head = make_atom("mortal", vec![x.clone()]);
+        let rule_body = make_atom("human", vec![x]);
+        assert(&mut db, &mut heap, &(rule_head, vec![rule_body]));
+
+        let query = make_atom("mortal", vec![socrates]);
+        let interrupted = make_interrupted();
+        let solutions: Vec<_> =
+            make_search(&db, &mut heap, &interrupted, make_goals(vec![query])).collect();
+        assert_eq!(solutions.len(), 1);
+    }
+
+    #[test]
+    fn solve_interrupted() {
+        // The solver should yield no results when interrupted
+        let mut heap = Heap::new();
+        let mut db: Database = VecDeque::new();
+        let socrates = make_const(&mut heap, "socrates");
+        assert(
+            &mut db,
+            &mut heap,
+            &(make_atom("human", vec![socrates.clone()]), vec![]),
+        );
+
+        let query = make_atom("human", vec![socrates]);
+        let interrupted = Arc::new(AtomicBool::new(true));
+        let mut search = make_search(&db, &mut heap, &interrupted, make_goals(vec![query]));
+        assert!(search.next().is_none());
+    }
+
+    #[test]
+    fn solve_empty_database() {
+        // Query against empty database should yield nothing
+        let mut heap = Heap::new();
+        let db: Database = VecDeque::new();
+        let socrates = make_const(&mut heap, "socrates");
+        let query = make_atom("human", vec![socrates]);
+        let interrupted = make_interrupted();
+        let solutions: Vec<_> =
+            make_search(&db, &mut heap, &interrupted, make_goals(vec![query])).collect();
+        assert!(solutions.is_empty());
     }
 }
