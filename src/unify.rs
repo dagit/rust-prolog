@@ -93,4 +93,17 @@ mod tests {
             prop_assert!(unify_terms(&env, &mut heap, &t, &t).is_ok());
         }
     }
+
+    proptest! {
+        #[test]
+        fn unify_symmetric(t1 in arb_term(3), t2 in arb_term(3)) {
+            let mut heap1 = Heap::new();
+            let mut heap2 = Heap::new();
+            let env = im::HashMap::new();
+
+            let result = unify_terms(&env, &mut heap1, &t1, &t2);
+            prop_assume!(result.is_ok());
+            prop_assert!(unify_terms(&env, &mut heap2, &t2, &t1).is_ok());
+        }
+    }
 }
