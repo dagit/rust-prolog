@@ -4,6 +4,7 @@ use crate::heap::{Heap, Lifetime};
 use crate::syntax::{occurs, subst_term, Atom, Environment, Term};
 
 /* [NoUnify] is used when terms cannot be unified. */
+#[derive(Debug)]
 pub struct NoUnify;
 
 /* [unify_terms env t1 t2] unifies terms [t1] and [t2] in the current
@@ -116,6 +117,52 @@ mod tests {
             let var_x = Arc::new(Term::Var(x.clone()));
             let t_with_x = Arc::new(Term::App(c, vec![var_x, t]));
             prop_assert!(unify_terms(&env, &mut heap, &Term::Var(x), &t_with_x).is_err());
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn unify_consistent_substitution(t1 in arb_term(3), t2 in arb_term(3)) {
+            let mut heap = Heap::new();
+            let env = im::HashMap::new();
+            let result = unify_terms(&env, &mut heap, &t1, &t2);
+            prop_assume!(result.is_ok());
+            let unified_env = result.unwrap();
+            let s1 = subst_term(&unified_env, &mut heap, &t1);
+            let s2 = subst_term(&unified_env, &mut heap, &t2);
+            prop_assert_eq!(s1, s2);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn unify_lists_length_mismatch(
+            t1 in arb_term(2),
+            t2 in arb_term(2),
+            t3 in arb_term(2),
+        ) {
+            let mut heap = Heap::new();
+            let env = im::HashMap::new();
+            // 1-element list vs 2-element list should always fail
+            let short = vec![t1.clone()];
+            let long = vec![t2, t3];
+            prop_assert!(unify_lists(&env, &mut heap, &short, &long).is_err());
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn unify_atoms_functor_mismatch(
+            c1 in arb_constant(),
+            c2 in arb_constant(),
+            args in proptest::collection::vec(arb_term(2), 0..3),
+        ) {
+            prop_assume!(c1 != c2);
+            let mut heap = Heap::new();
+            let env = im::HashMap::new();
+            let a1 = (c1, args.clone());
+            let a2 = (c2, args);
+            prop_assert!(unify_atoms(&env, &mut heap, &a1, &a2).is_err());
         }
     }
 }
